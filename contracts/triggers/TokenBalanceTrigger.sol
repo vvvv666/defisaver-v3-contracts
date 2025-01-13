@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../auth/AdminAuth.sol";
-import "../interfaces/ITrigger.sol";
-import "../interfaces/IERC20.sol";
+import { AdminAuth } from "../auth/AdminAuth.sol";
+import { ITrigger } from "../interfaces/ITrigger.sol";
+import { IERC20 } from "../interfaces/IERC20.sol";
 
 /// @title Trigger contract that checks if a certain condition regarding users token amount are true
 contract TokenBalanceTrigger is ITrigger, AdminAuth {
@@ -22,7 +22,7 @@ contract TokenBalanceTrigger is ITrigger, AdminAuth {
     }
 
     function isTriggered(bytes memory, bytes memory _subData) public view override returns (bool) {
-        SubParams memory triggerSubData = parseInputs(_subData);
+        SubParams memory triggerSubData = parseSubInputs(_subData);
         
         uint256 currBalance = IERC20(triggerSubData.tokenAddr).balanceOf(triggerSubData.userAddr);
 
@@ -44,7 +44,7 @@ contract TokenBalanceTrigger is ITrigger, AdminAuth {
         return false;
     }
 
-    function parseInputs(bytes memory _subData) public pure returns (SubParams memory params) {
+    function parseSubInputs(bytes memory _subData) public pure returns (SubParams memory params) {
         params = abi.decode(_subData, (SubParams));
     }
 }

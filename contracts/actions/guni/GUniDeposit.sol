@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "./../ActionBase.sol";
-import "../../utils/TokenUtils.sol";
-import "../../DS/DSMath.sol";
-import "./helpers/GUniHelper.sol";
+import { ActionBase } from "./../ActionBase.sol";
+import { TokenUtils } from "../../utils/TokenUtils.sol";
+import { DSMath } from "../../DS/DSMath.sol";
+import { GUniHelper } from "./helpers/GUniHelper.sol";
 
 /// @title Action that adds liquidity to G-UNI pool of interest (mints G-UNI LP tokens)
 contract GUniDeposit is ActionBase, DSMath, GUniHelper {
@@ -91,7 +90,7 @@ contract GUniDeposit is ActionBase, DSMath, GUniHelper {
         return (mintAmount, logData);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory inputData) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory inputData) {
         inputData = abi.decode(_callData, (Params));
     }
 }

@@ -1,204 +1,372 @@
+/* eslint-disable camelcase */
 const hre = require('hardhat');
-const { expect } = require('chai');
 
-const { getAssetInfo, assetAmountInWei } = require('@defisaver/tokens');
+const { getAssetInfo } = require('@defisaver/tokens');
+const { expect } = require('chai');
+const { ethers } = require('hardhat');
+const { supplyComp, borrowComp } = require('../../actions');
+const {
+    createCompV2BoostStrategy,
+    createCompV2RepayStrategy,
+    createCompFLV2BoostStrategy,
+    createCompFLV2RepayStrategy,
+} = require('../../strategies');
 
 const {
-    getProxy,
-    redeploy,
-    approve,
-    fetchAmountinUSDPrice,
-    depositToWeth,
-    setNewExchangeWrapper,
+    callCompV2BoostStrategy,
+    callCompV2RepayStrategy,
+    callCompFLV2BoostStrategy,
+    callCompFLV2RepayStrategy,
+} = require('../../strategy-calls');
+
+const { subCompV2AutomationStrategy } = require('../../strategy-subs');
+const {
+    getContractFromRegistry,
+    setNetwork,
     openStrategyAndBundleStorage,
+    getProxy,
+    setNewExchangeWrapper,
+    fetchAmountinUSDPrice,
+    approve,
+    setBalance,
+    redeploy,
+    REGISTRY_ADDR,
+    WETH_ADDRESS,
     redeployCore,
 } = require('../../utils');
+const { createStrategy, addBotCaller, createBundle } = require('../../utils-strategies');
 
-const {
-    getSupplyBalance,
-    getCompRatio,
-} = require('../../utils-comp');
+const createBundleAndStrategy = async (proxy) => {
+    const repayCompStrategyEncoded = createCompV2RepayStrategy();
+    const repayFLCompStrategyEncoded = createCompFLV2RepayStrategy();
 
-const { createStrategy, addBotCaller } = require('../../utils-strategies');
+    const boostCompStrategyEncoded = createCompV2BoostStrategy();
+    const boostFLCompStrategyEncoded = createCompFLV2BoostStrategy();
 
-const { callCompBoostStrategy, callCompRepayStrategy } = require('../../strategy-calls');
-const { subCompBoostStrategy, subCompRepayStrategy } = require('../../strategy-subs');
-const { createBoostStrategy, createCompRepayStrategy } = require('../../strategies');
+    await openStrategyAndBundleStorage(false);
 
-const { supplyComp, borrowComp } = require('../../actions');
+    const repayId1 = await createStrategy(proxy, ...repayCompStrategyEncoded, true);
+    const repayId2 = await createStrategy(proxy, ...repayFLCompStrategyEncoded, true);
 
-const compBoostStrategyTest = async () => {
-    describe('Compound-Boost-Strategy', function () {
-        this.timeout(120000);
+    const boostId1 = await createStrategy(proxy, ...boostCompStrategyEncoded, true);
+    const boostId2 = await createStrategy(proxy, ...boostFLCompStrategyEncoded, true);
 
-        let senderAcc;
-        let proxy;
-        let botAcc;
-        let strategyExecutor;
-        let subId;
-        let strategySub;
-        let uniWrapper;
-        let compView;
-        let ratioOver;
-        let targetRatio;
-        let strategyId;
+    const repayBundleId = await createBundle(
+        proxy,
+        [repayId1, repayId2],
+    );
 
-        before(async () => {
-            senderAcc = (await hre.ethers.getSigners())[0];
-            botAcc = (await hre.ethers.getSigners())[1];
+    const boostBundleId = await createBundle(
+        proxy,
+        [boostId1, boostId2],
+    );
+    await redeploy('CompSubProxy', REGISTRY_ADDR, false, false, repayBundleId, boostBundleId);
+    return { repayBundleId, boostBundleId };
+};
 
-            compView = await redeploy('CompView');
+const testPairs = [
+    {
+        collSymbol: 'cETH',
+        debtSymbol: 'cDAI',
+    },
+    {
+        collSymbol: 'cWBTC',
+        debtSymbol: 'cUSDC',
+    },
+    {
+        collSymbol: 'cDAI',
+        debtSymbol: 'cETH',
+    },
+];
 
-            strategyExecutor = await redeployCore();
+const compV2BoostTest = () => describe('Comp-Boost-Strategy', function () {
+    this.timeout(1000000);
 
-            await redeploy('DFSSell');
-            await redeploy('FLDyDx');
-            await redeploy('FLAaveV2');
-            await redeploy('GasFeeTaker');
-            await redeploy('CompSupply');
-            await redeploy('CompBorrow');
-            await redeploy('CompoundRatioTrigger');
-            uniWrapper = await redeploy('UniswapWrapperV3');
+    let senderAcc;
+    let proxy;
+    let view;
 
-            senderAcc = (await hre.ethers.getSigners())[0];
-            proxy = await getProxy(senderAcc.address);
+    let botAcc;
+    let strategyExecutor;
+    let exchangeWrapper;
 
-            await setNewExchangeWrapper(senderAcc, uniWrapper.address);
-            await addBotCaller(botAcc.address);
+    let subData;
+    let flAddr;
 
-            const supplyBalance = await getSupplyBalance(compView, proxy.address, getAssetInfo('cETH').address);
-            if (supplyBalance.lt(assetAmountInWei('20', 'ETH'))) {
-                let initialCollAmount = fetchAmountinUSDPrice('WETH', '35000');
-                initialCollAmount = hre.ethers.utils.parseUnits(initialCollAmount, 18);
-                const initialBorrowAmount = hre.ethers.utils.parseUnits('10000', 18);
-                await approve(getAssetInfo('WETH').address, proxy.address);
-                await depositToWeth(initialCollAmount);
-                console.log(`supplying ${initialCollAmount}`);
-                await supplyComp(proxy, getAssetInfo('cETH').address, getAssetInfo('WETH').address, initialCollAmount, senderAcc.address);
-                console.log(`borrowing ${initialBorrowAmount}`);
-                await borrowComp(proxy, getAssetInfo('cDAI').address, initialBorrowAmount, senderAcc.address);
-            }
-        });
+    before(async () => {
+        setNetwork('mainnet');
+        [senderAcc] = await ethers.getSigners();
+        proxy = await getProxy(senderAcc.address, hre.config.isWalletSafe);
 
-        it('... should make a new Comp Boost strategy', async () => {
-            await openStrategyAndBundleStorage();
-            const strategyData = createBoostStrategy();
-            strategyId = await createStrategy(proxy, ...strategyData, true);
+        botAcc = (await ethers.getSigners())[1];
+        strategyExecutor = await redeployCore();
 
-            targetRatio = hre.ethers.utils.parseUnits('2.1', '18');
-            ratioOver = hre.ethers.utils.parseUnits('2.5', '18');
+        await redeploy('CompBorrow');
+        await redeploy('CompSupply');
+        await redeploy('CompoundRatioTrigger');
+        await redeploy('CompV2RatioCheck');
+        await redeploy('DFSSell');
 
-            ({ subId, strategySub } = await subCompBoostStrategy(
-                proxy,
-                ratioOver,
-                targetRatio,
-                strategyId,
-            ));
-        });
+        flAddr = await redeploy('FLAction');
+        view = await getContractFromRegistry('CompView');
 
-        it('... should trigger a Comp boost strategy', async () => {
-            const ratioBefore = await getCompRatio(compView, proxy.address);
-            console.log(ratioBefore.toString());
-            // expect(ratioBefore).to.be.gt(ratioOver);
-            const boostAmount = hre.ethers.utils.parseUnits('12000', 18);
-            await callCompBoostStrategy(botAcc, strategyExecutor, subId, strategySub, boostAmount);
+        ({ address: exchangeWrapper } = await getContractFromRegistry('UniswapWrapperV3'));
+        await setNewExchangeWrapper(senderAcc, exchangeWrapper);
+        await addBotCaller(botAcc.address);
 
-            const ratioAfter = await getCompRatio(compView, proxy.address);
-            console.log(ratioAfter.toString());
-            expect(ratioAfter).to.be.lt(ratioBefore);
-        });
+        await createBundleAndStrategy(proxy);
     });
-};
 
-const compRepayStrategyTest = async () => {
-    describe('Compound-Repay-Strategy', function () {
-        this.timeout(120000);
+    for (let i = 0; i < testPairs.length; i++) {
+        const { collSymbol, debtSymbol } = testPairs[i];
 
-        let senderAcc;
-        let proxy;
-        let botAcc;
-        let strategyExecutor;
-        let subId;
-        let strategySub;
-        let uniWrapper;
-        let compView;
-        let ratioUnder;
-        let targetRatio;
-        let strategyId;
+        const cCollAsset = getAssetInfo(collSymbol);
+        const cDebtAsset = getAssetInfo(debtSymbol);
 
-        before(async () => {
-            senderAcc = (await hre.ethers.getSigners())[0];
-            botAcc = (await hre.ethers.getSigners())[1];
+        const collAsset = getAssetInfo(cCollAsset.underlyingAsset);
+        const debtAsset = getAssetInfo(cDebtAsset.underlyingAsset);
 
-            await redeploy('DFSSell');
-            compView = await redeploy('CompView');
-            uniWrapper = await redeploy('UniswapWrapperV3');
-            await redeploy('GasFeeTaker');
-            await redeploy('CompSupply');
-            await redeploy('CompBorrow');
-            await redeploy('CompPayback');
-            await redeploy('CompWithdraw');
-            await redeploy('CompoundRatioTrigger');
+        const collAmount = ethers.utils.parseUnits(
+            fetchAmountinUSDPrice(collAsset.symbol, '20000'),
+            collAsset.decimals,
+        );
+        const debtAmount = ethers.utils.parseUnits(
+            fetchAmountinUSDPrice(debtAsset.symbol, '5000'),
+            debtAsset.decimals,
+        );
 
-            strategyExecutor = await redeployCore();
+        console.log(collAmount.toString(), debtAmount.toString());
 
-            senderAcc = (await hre.ethers.getSigners())[0];
-            proxy = await getProxy(senderAcc.address);
-
-            await setNewExchangeWrapper(senderAcc, uniWrapper.address);
-            await addBotCaller(botAcc.address);
-
-            const supplyBalance = await getSupplyBalance(compView, proxy.address, getAssetInfo('cETH').address);
-            if (supplyBalance.lt(assetAmountInWei('20', 'ETH'))) {
-                let initialCollAmount = fetchAmountinUSDPrice('WETH', '35000');
-                initialCollAmount = hre.ethers.utils.parseUnits(initialCollAmount, 18);
-                const initialBorrowAmount = hre.ethers.utils.parseUnits('10000', 18);
-                await approve(getAssetInfo('WETH').address, proxy.address);
-                await depositToWeth(initialCollAmount);
-                console.log(`supplying ${initialCollAmount}`);
-                await supplyComp(proxy, getAssetInfo('cETH').address, getAssetInfo('WETH').address, initialCollAmount, senderAcc.address);
-                console.log(`borrowing ${initialBorrowAmount}`);
-                await borrowComp(proxy, getAssetInfo('cDAI').address, initialBorrowAmount, senderAcc.address);
+        it('... should make a new Comp position and sub', async () => {
+            if (collAsset.symbol === 'ETH') {
+                collAsset.address = WETH_ADDRESS;
             }
-        });
 
-        it('... should make a new Comp Repay strategy', async () => {
-            const strategyData = createCompRepayStrategy();
-            await openStrategyAndBundleStorage();
+            if (debtAsset.symbol === 'ETH') {
+                debtAsset.address = WETH_ADDRESS;
+            }
 
-            strategyId = await createStrategy(proxy, ...strategyData, true);
+            await setBalance(collAsset.address, senderAcc.address, collAmount);
+            await approve(collAsset.address, proxy.address);
 
-            targetRatio = hre.ethers.utils.parseUnits('3.8', '18');
-            ratioUnder = hre.ethers.utils.parseUnits('3', '18');
-
-            ({ subId, strategySub } = await subCompRepayStrategy(
+            await supplyComp(
                 proxy,
-                ratioUnder,
-                targetRatio,
-                strategyId,
-            ));
+                cCollAsset.address,
+                collAsset.address,
+                collAmount,
+                senderAcc.address,
+            );
+
+            await borrowComp(
+                proxy,
+                cDebtAsset.address,
+                debtAmount,
+                senderAcc.address,
+            );
+
+            subData = await subCompV2AutomationStrategy(proxy, 120, 200, 150, 150, true);
         });
 
-        it('... should trigger a Comp repay strategy', async () => {
-            const ratioBefore = await getCompRatio(compView, proxy.address);
-            console.log(ratioBefore.toString());
-            // expect(ratioBefore).to.be.lt(ratioUnder);
-            const repayAmount = hre.ethers.utils.parseUnits('1.5', 18);
-            await callCompRepayStrategy(botAcc, strategyExecutor, subId, strategySub, repayAmount);
+        it('... should trigger a Comp Boost strategy', async () => {
+            const boostAmount = debtAmount.div(20);
 
-            const ratioAfter = await getCompRatio(compView, proxy.address);
-            console.log(ratioAfter.toString());
-            expect(ratioAfter).to.be.gt(targetRatio);
+            const loanDataBefore = await view.getLoanData(proxy.address);
+
+            await callCompV2BoostStrategy(
+                botAcc,
+                strategyExecutor,
+                0, // strategyIndex
+                subData.boostSubId,
+                subData.boostSub,
+                cCollAsset.address,
+                cDebtAsset.address,
+                collAsset.address,
+                debtAsset.address,
+                boostAmount,
+                exchangeWrapper,
+            );
+
+            const loanDataAfter = await view.getLoanData(proxy.address);
+
+            expect(loanDataAfter.ratio).to.be.lt(loanDataBefore.ratio);
         });
+
+        it('... should trigger a Comp FL Boost strategy', async () => {
+            const boostAmount = debtAmount.div(10);
+
+            const loanDataBefore = await view.getLoanData(proxy.address);
+
+            console.log(loanDataBefore.ratio / 1e16);
+
+            await callCompFLV2BoostStrategy(
+                botAcc,
+                strategyExecutor,
+                1, // strategyIndex
+                subData.boostSubId,
+                subData.boostSub,
+                cCollAsset.address,
+                cDebtAsset.address,
+                collAsset.address,
+                debtAsset.address,
+                boostAmount,
+                exchangeWrapper,
+                flAddr.address,
+            );
+
+            const loanDataAfter = await view.getLoanData(proxy.address);
+
+            expect(loanDataAfter.ratio).to.be.lt(loanDataBefore.ratio);
+        });
+    }
+});
+
+const compV2RepayTest = () => describe('Comp-Repay-Strategy', function () {
+    this.timeout(1000000);
+
+    let senderAcc;
+    let proxy;
+    let view;
+
+    let botAcc;
+    let strategyExecutor;
+    let exchangeWrapper;
+
+    let subData;
+    let flAddr;
+
+    before(async () => {
+        setNetwork('mainnet');
+        [senderAcc] = await ethers.getSigners();
+        proxy = await getProxy(senderAcc.address, hre.config.isWalletSafe);
+
+        botAcc = (await ethers.getSigners())[1];
+        strategyExecutor = await redeployCore();
+
+        await redeploy('DFSSell');
+        await redeploy('CompWithdraw');
+        await redeploy('CompPayback');
+        await redeploy('CompoundRatioTrigger');
+        await redeploy('CompV2RatioCheck');
+        flAddr = await redeploy('FLAction');
+
+        view = await getContractFromRegistry('CompView');
+
+        ({ address: exchangeWrapper } = await getContractFromRegistry('UniswapWrapperV3'));
+        await setNewExchangeWrapper(senderAcc, exchangeWrapper);
+        await addBotCaller(botAcc.address);
+
+        await createBundleAndStrategy(proxy);
     });
+
+    for (let i = 0; i < testPairs.length; i++) {
+        const { collSymbol, debtSymbol } = testPairs[i];
+
+        const cCollAsset = getAssetInfo(collSymbol);
+        const cDebtAsset = getAssetInfo(debtSymbol);
+
+        const collAsset = getAssetInfo(cCollAsset.underlyingAsset);
+        const debtAsset = getAssetInfo(cDebtAsset.underlyingAsset);
+
+        const collAmount = ethers.utils.parseUnits(
+            fetchAmountinUSDPrice(collAsset.symbol, '20000'),
+            collAsset.decimals,
+        );
+        const debtAmount = ethers.utils.parseUnits(
+            fetchAmountinUSDPrice(debtAsset.symbol, '10000'),
+            debtAsset.decimals,
+        );
+
+        it('... should make a new Comp position and sub', async () => {
+            if (collAsset.symbol === 'ETH') {
+                collAsset.address = WETH_ADDRESS;
+            }
+
+            if (debtAsset.symbol === 'ETH') {
+                debtAsset.address = WETH_ADDRESS;
+            }
+
+            await setBalance(collAsset.address, senderAcc.address, collAmount);
+            await approve(collAsset.address, proxy.address);
+
+            await supplyComp(
+                proxy,
+                cCollAsset.address,
+                collAsset.address,
+                collAmount,
+                senderAcc.address,
+            );
+
+            await borrowComp(
+                proxy,
+                cDebtAsset.address,
+                debtAmount,
+                senderAcc.address,
+            );
+
+            subData = await subCompV2AutomationStrategy(proxy, 200, 300, 250, 250, true);
+        });
+
+        it('... should trigger a Comp Repay strategy', async () => {
+            const repayAmount = collAmount.div(20);
+
+            const loanDataBefore = await view.getLoanData(proxy.address);
+
+            console.log(loanDataBefore.ratio / 1e16);
+
+            await callCompV2RepayStrategy(
+                botAcc,
+                strategyExecutor,
+                0, // strategyIndex
+                subData.repaySubId,
+                subData.repaySub,
+                cCollAsset.address,
+                cDebtAsset.address,
+                collAsset.address,
+                debtAsset.address,
+                repayAmount,
+                exchangeWrapper,
+            );
+
+            const loanDataAfter = await view.getLoanData(proxy.address);
+
+            expect(loanDataAfter.ratio).to.be.gt(loanDataBefore.ratio);
+        });
+
+        it('... should trigger a Comp FL Repay strategy', async () => {
+            const repayAmount = collAmount.div(20);
+
+            const loanDataBefore = await view.getLoanData(proxy.address);
+            console.log(loanDataBefore.ratio / 1e16);
+
+            await callCompFLV2RepayStrategy(
+                botAcc,
+                strategyExecutor,
+                1, // strategyIndex
+                subData.repaySubId,
+                subData.repaySub,
+                cCollAsset.address,
+                cDebtAsset.address,
+                collAsset.address,
+                debtAsset.address,
+                repayAmount,
+                exchangeWrapper,
+                flAddr.address,
+            );
+
+            const loanDataAfter = await view.getLoanData(proxy.address);
+
+            expect(loanDataAfter.ratio).to.be.gt(loanDataBefore.ratio);
+        });
+    }
+});
+
+const compV2StrategiesTest = () => {
+    compV2BoostTest();
+    compV2RepayTest();
 };
 
-const compoundStrategiesTest = async () => {
-    await compBoostStrategyTest();
-    await compRepayStrategyTest();
-};
 module.exports = {
-    compoundStrategiesTest,
-    compBoostStrategyTest,
-    compRepayStrategyTest,
+    compV2StrategiesTest,
+    compV2BoostTest,
+    compV2RepayTest,
 };

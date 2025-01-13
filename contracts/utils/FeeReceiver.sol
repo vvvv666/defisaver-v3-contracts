@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "./SafeERC20.sol";
-import "./helpers/UtilHelper.sol";
-
+import { SafeERC20 } from "./SafeERC20.sol";
+import { UtilHelper } from "./helpers/UtilHelper.sol";
+import { IERC20 } from "../interfaces/IERC20.sol";
 
 /// @title Contract that receivers fees and can be withdrawn from with the admin
 contract FeeReceiver is UtilHelper {
@@ -15,10 +15,6 @@ contract FeeReceiver is UtilHelper {
         require(msg.sender == FEE_RECEIVER_ADMIN_ADDR, "Only Admin");
 
         _;
-    }
-
-    /// @dev Approves bot refill as it needs to pull funds for gas feeds from this addr
-    constructor() {
     }
 
     /// @notice Withdraws ERC20 tokens from the contract

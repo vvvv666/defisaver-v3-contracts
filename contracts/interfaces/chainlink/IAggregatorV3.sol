@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
 interface IAggregatorV3 {
     function decimals() external view returns (uint8);
@@ -32,6 +32,8 @@ interface IAggregatorV3 {
             uint256 updatedAt,
             uint80 answeredInRound
         );
+
+    function latestAnswer() external view returns (uint256);
 
     function getTimestamp(uint256 _roundId) external view returns (uint256);
 

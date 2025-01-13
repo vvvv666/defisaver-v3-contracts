@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../auth/AdminAuth.sol";
-import "../utils/TransientStorage.sol";
-import "../actions/compoundV3/helpers/CompV3RatioHelper.sol";
-import "../interfaces/ITrigger.sol";
+import { AdminAuth } from "../auth/AdminAuth.sol";
+import { TransientStorage } from "../utils/TransientStorage.sol";
+import { CompV3RatioHelper } from "../actions/compoundV3/helpers/CompV3RatioHelper.sol";
+import { ITrigger } from "../interfaces/ITrigger.sol";
+import { TriggerHelper } from "./helpers/TriggerHelper.sol";
 
 /// @title Trigger contract that verifies if the CompoundV3 position went over/under the subbed ratio
-contract CompV3RatioTrigger is ITrigger, AdminAuth, CompV3RatioHelper {
+contract CompV3RatioTrigger is ITrigger, AdminAuth, CompV3RatioHelper, TriggerHelper {
 
     enum RatioState { OVER, UNDER }
 
@@ -31,7 +32,7 @@ contract CompV3RatioTrigger is ITrigger, AdminAuth, CompV3RatioHelper {
         override
         returns (bool)
     {   
-        SubParams memory triggerSubData = parseInputs(_subData);
+        SubParams memory triggerSubData = parseSubInputs(_subData);
 
         uint256 currRatio = getSafetyRatio(triggerSubData.market, triggerSubData.user);
 
@@ -50,9 +51,10 @@ contract CompV3RatioTrigger is ITrigger, AdminAuth, CompV3RatioHelper {
         return false;
     }
 
-    function parseInputs(bytes memory _subData) internal pure returns (SubParams memory params) {
+    function parseSubInputs(bytes memory _subData) public pure returns (SubParams memory params) {
         params = abi.decode(_subData, (SubParams));
     }
+
     function changedSubData(bytes memory _subData) public pure override  returns (bytes memory) {
     }
     

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../../../ActionBase.sol";
-import "./../../helpers/ReflexerHelper.sol";
+import { ActionBase } from "../../../ActionBase.sol";
+import { ReflexerHelper } from "./../../helpers/ReflexerHelper.sol";
+import { ISAFESaviour } from "../../../../interfaces/reflexer/ISAFESaviour.sol";
 
 /// @title Withdraw lpToken from the contract and provide less cover for a SAFE
 contract ReflexerNativeUniV2SaviourWithdraw is ActionBase, ReflexerHelper {
@@ -63,7 +63,7 @@ contract ReflexerNativeUniV2SaviourWithdraw is ActionBase, ReflexerHelper {
         logData = abi.encode(_inputData);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory inputData) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory inputData) {
         inputData = abi.decode(_callData, (Params));
     }
 }

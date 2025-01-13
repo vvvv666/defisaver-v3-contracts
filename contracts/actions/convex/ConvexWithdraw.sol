@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../../interfaces/convex/IBooster.sol";
-import "../../interfaces/convex/IBaseRewardPool.sol";
-import "../../utils/TokenUtils.sol";
-import "./helpers/ConvexHelper.sol";
-import "../ActionBase.sol";
+import { IBooster } from "../../interfaces/convex/IBooster.sol";
+import { IBRewardPool } from "../../interfaces/convex/IBRewardPool.sol";
+import { TokenUtils } from "../../utils/TokenUtils.sol";
+import { ConvexHelper } from "./helpers/ConvexHelper.sol";
+import { ActionBase } from "../ActionBase.sol";
 
 contract ConvexWithdraw is ConvexHelper, ActionBase {
     using TokenUtils for address;
@@ -24,7 +24,7 @@ contract ConvexWithdraw is ConvexHelper, ActionBase {
 
     /// @inheritdoc ActionBase
     function executeAction(
-        bytes calldata _callData,
+        bytes memory _callData,
         bytes32[] memory _subData,
         uint8[] memory _paramMapping,
         bytes32[] memory _returnValues
@@ -42,7 +42,7 @@ contract ConvexWithdraw is ConvexHelper, ActionBase {
     }
 
     /// @inheritdoc ActionBase
-    function executeActionDirect(bytes calldata _callData) public payable override {
+    function executeActionDirect(bytes memory _callData) public payable override {
         Params memory params = parseInputs(_callData);
         (, bytes memory logData) = _withdraw(params);
         logger.logActionDirectEvent("ConvexWithdraw", logData);
@@ -67,13 +67,13 @@ contract ConvexWithdraw is ConvexHelper, ActionBase {
             _params.from = address(this);
             // crvRewards implements balanceOf, but is not transferable, this is fine because from == address(this)
             _params.amount = poolInfo.crvRewards.pullTokensIfNeeded(_params.from, _params.amount);
-            IBaseRewardPool(poolInfo.crvRewards).withdraw(_params.amount, false);
+            IBRewardPool(poolInfo.crvRewards).withdraw(_params.amount, false);
             poolInfo.token.withdrawTokens(_params.to, _params.amount);
         } else
         if (_params.option == WithdrawOption.UNSTAKE_AND_UNWRAP) {
             _params.from = address(this);
             _params.amount = poolInfo.crvRewards.pullTokensIfNeeded(_params.from, _params.amount);
-            IBaseRewardPool(poolInfo.crvRewards).withdrawAndUnwrap(_params.amount, false);
+            IBRewardPool(poolInfo.crvRewards).withdrawAndUnwrap(_params.amount, false);
             poolInfo.lpToken.withdrawTokens(_params.to, _params.amount);
         }
 
@@ -81,7 +81,7 @@ contract ConvexWithdraw is ConvexHelper, ActionBase {
         logData = abi.encode(_params);
     }
 
-    function parseInputs(bytes calldata _callData) internal pure returns (Params memory params) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
     }
 }

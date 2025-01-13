@@ -3,6 +3,9 @@ const hre = require('hardhat');
 const RATIO_STATE_OVER = 0;
 const RATIO_STATE_UNDER = 1;
 
+const IN_BOOST = 0;
+const IN_REPAY = 1;
+
 const BUY_ORDER = 0;
 const SELL_ORDER = 1;
 
@@ -10,12 +13,6 @@ const abiCoder = new hre.ethers.utils.AbiCoder();
 
 const createMcdTrigger = async (vaultId, ratio, ratioState) => {
     const param = abiCoder.encode(['uint256', 'uint256', 'uint8'], [vaultId, ratio, ratioState]);
-
-    return param;
-};
-
-const createCompTrigger = async (user, ratio, ratioState) => {
-    const param = abiCoder.encode(['address', 'uint256', 'uint8'], [user, ratio, ratioState]);
 
     return param;
 };
@@ -32,18 +29,19 @@ const createLiquityTrigger = async (user, ratio, ratioState) => {
     return param;
 };
 
+const createCurveUsdCollRatioTrigger = async (user, controllerAddr, ratio, ratioState) => {
+    const param = abiCoder.encode(['address', 'address', 'uint256', 'uint8'], [user, controllerAddr, ratio, ratioState]);
+
+    return param;
+};
+
+const createMorphoBlueRatioTrigger = async (marketId, user, ratio, state) => {
+    const param = abiCoder.encode(['bytes32', 'address', 'uint256', 'uint8'], [marketId, user, ratio, state]);
+    return param;
+};
+
 const createChainLinkPriceTrigger = async (tokenAddr, price, state) => {
     const param = abiCoder.encode(['address', 'uint256', 'uint8'], [tokenAddr, price, state]);
-    return param;
-};
-
-const createOffchainPriceTrigger = async (targetPrice, goodUntil) => {
-    const param = abiCoder.encode(['uint256', 'uint256'], [targetPrice, goodUntil]);
-    return param;
-};
-
-const createTrailingStopTrigger = async (chainlinkTokenAddr, percentage, roundId) => {
-    const param = abiCoder.encode(['address', 'uint256', 'uint80'], [chainlinkTokenAddr, percentage, roundId]);
     return param;
 };
 
@@ -64,14 +62,8 @@ const createGasPriceTrigger = async (maxGasPrice) => {
     return param;
 };
 
-const createCbRebondTrigger = async (bondID) => {
-    const param = abiCoder.encode(['uint256'], [bondID]);
-
-    return param;
-};
-
-const createMorphoTrigger = async (user, ratio, ratioState) => {
-    const param = abiCoder.encode(['address', 'uint256', 'uint8'], [user, ratio, ratioState]);
+const createCurveUsdHealthRatioTrigger = async (user, controllerAddr, ratio) => {
+    const param = abiCoder.encode(['address', 'address', 'uint256'], [user, controllerAddr, ratio]);
 
     return param;
 };
@@ -82,15 +74,15 @@ module.exports = {
     createChainLinkPriceTrigger,
     createTimestampTrigger,
     createGasPriceTrigger,
-    createCompTrigger,
     createReflexerTrigger,
     createLiquityTrigger,
-    createTrailingStopTrigger,
-    createCbRebondTrigger,
-    createOffchainPriceTrigger,
-    createMorphoTrigger,
+    createCurveUsdCollRatioTrigger,
+    createMorphoBlueRatioTrigger,
+    createCurveUsdHealthRatioTrigger,
     RATIO_STATE_OVER,
     RATIO_STATE_UNDER,
+    IN_BOOST,
+    IN_REPAY,
     BUY_ORDER,
     SELL_ORDER,
 };

@@ -147,10 +147,19 @@ async function deployContract(contractName, args) {
 
     const networkPrefix = (network === 'mainnet' || network === 'arbitrum') ? '' : `${network}.`;
 
-    console.log(`Transaction : https://${networkPrefix}${blockExplorer}.io/tx/${contract.deployTransaction.hash}`);
+    if (network !== 'base') {
+        console.log(`Transaction : https://${networkPrefix}${blockExplorer}.io/tx/${contract.deployTransaction.hash}`);
+    } else {
+        console.log(`Transaction : https://basescan.org/tx/${contract.deployTransaction.hash}`);
+    }
 
     await contract.deployed();
-    console.log(`Contract deployed to: https://${networkPrefix}${blockExplorer}.io/address/${contract.address}`);
+
+    if (network !== 'base') {
+        console.log(`Contract deployed to: https://${networkPrefix}${blockExplorer}.io/address/${contract.address}`);
+    } else {
+        console.log(`Contract deployed to: https://basescan.org/address/${contract.address}`);
+    }
 
     return contract.address;
 }
@@ -178,6 +187,8 @@ async function verifyContract(contractAddress, contractName) {
         apiKey = process.env.ARBISCAN_API_KEY;
     } else if (network === 'optimistic') {
         apiKey = process.env.OPTIMISTIC_ETHERSCAN_API_KEY;
+    } else if (network === 'base') {
+        apiKey = process.env.BASE_ETHERSCAN_API_KEY;
     }
 
     params.append('apikey', apiKey);
@@ -189,17 +200,20 @@ async function verifyContract(contractAddress, contractName) {
     params.append('codeformat', 'solidity-single-file"');
     let solVersion;
     // https://etherscan.io/solcversions see supported sol versions
-    switch (hardhatSettings.solidity.version) {
+    switch (hardhatSettings.solidity.compilers[0].version) {
     case ('=0.8.10'):
         solVersion = 'v0.8.10+commit.fc410830';
         break;
+    case ('=0.8.24'):
+        solVersion = 'v0.8.24+commit.e11b9ed9';
+        break;
     default:
-        solVersion = 'v0.8.10+commit.fc410830';
+        solVersion = 'v0.8.24+commit.e11b9ed9';
     }
     params.append('compilerversion', solVersion);
-    params.append('optimizationUsed', hardhatSettings.solidity.settings.optimizer.enabled ? 1 : 0);
-    params.append('runs', hardhatSettings.solidity.settings.optimizer.runs);
-    params.append('EVMVersion', 'default (compiler defaults)');
+    params.append('optimizationUsed', hardhatSettings.solidity.compilers[0].settings.optimizer.enabled ? 1 : 0);
+    params.append('runs', hardhatSettings.solidity.compilers[0].settings.optimizer.runs);
+    params.append('EVMVersion', '');
     /// @notice : MIT license
     params.append('licenseType', 3);
 
@@ -210,6 +224,12 @@ async function verifyContract(contractAddress, contractName) {
         url = `https://api-${network}.${blockExplorer}.io/api`;
         demo = `https://${network}.${blockExplorer}.io/sourcecode-demo.html`;
     }
+
+    if (network === 'base') {
+        url = 'https://api.basescan.org/api';
+        demo = 'https://basescan.org/sourcecode-demo.html';
+    }
+
     const tx = await axios.post(url, params, config);
     console.log(`Check how verification is going at ${demo} with API key ${apiKey} and receipt GUID ${tx.data.result}`);
 }
@@ -221,13 +241,13 @@ async function flatten(filePath) {
     }
     const fileName = path.basename(filePath);
     const pragmaRegex = /^pragma.*$\n?/gm; // anything starting with pragma
-    const licenseRegex = /^[//SPDX].*$\n?/gm; // anything starting with //SPDX
+    const topLvlCommentsRegex = /^(?<!\/\*\*)(?<=^|\n)[^\s]*\/\/.*$/gm; // matches anything with // that is without spaces or indents
     let globalLicense;
     let pragma;
     // Find license and any pragmas (sol version, and possible abi encoder)
     try {
         const data = fs.readFileSync(filePath, 'utf8');
-        globalLicense = data.match(licenseRegex);
+        globalLicense = data.match(topLvlCommentsRegex);
         pragma = data.match(pragmaRegex);
     } catch (err) {
         console.error(err);
@@ -238,7 +258,7 @@ async function flatten(filePath) {
         await fs.readFileSync(`contracts/flattened/${fileName}`)
     ).toString();
     data = data.replace(pragmaRegex, '');
-    data = data.replace(licenseRegex, '');
+    data = data.replace(topLvlCommentsRegex, '');
     const flags = { flag: 'a+' };
 
     fs.writeFileSync(`contracts/flattened/${fileName}`, globalLicense[0]);

@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../auth/AdminAuth.sol";
-import "../DS/DSMath.sol";
-import "../interfaces/ITrigger.sol";
-import "../interfaces/chainlink/IFeedRegistry.sol";
-import "../interfaces/lido/IWStEth.sol";
-import "../utils/Denominations.sol";
-import "../utils/TokenUtils.sol";
-import "./helpers/TriggerHelper.sol";
-import "../utils/TokenPriceHelper.sol";
+import { AdminAuth } from "../auth/AdminAuth.sol";
+import { DSMath } from "../DS/DSMath.sol";
+import { ITrigger } from "../interfaces/ITrigger.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
+import { TriggerHelper } from "./helpers/TriggerHelper.sol";
+import { TokenPriceHelper } from "../utils/TokenPriceHelper.sol";
 
 /// @title Validates trailing stop, caller injects a chainlink roundId where conditions are met
 contract TrailingStopTrigger is ITrigger, AdminAuth, TriggerHelper, DSMath, TokenPriceHelper {
@@ -71,11 +68,7 @@ contract TrailingStopTrigger is ITrigger, AdminAuth, TriggerHelper, DSMath, Toke
         return false;
     }
 
-    function parseSubInputs(bytes memory _callData)
-        internal
-        pure
-        returns (SubParams memory params)
-    {
+    function parseSubInputs(bytes memory _callData) public pure returns (SubParams memory params) {
         params = abi.decode(_callData, (SubParams));
     }
 

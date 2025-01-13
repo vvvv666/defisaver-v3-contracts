@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../../../interfaces/aaveV2/ILendingPoolV2.sol";
-import "../../../interfaces/aaveV2/ILendingPoolAddressesProviderV2.sol";
-import "../../../DS/DSMath.sol";
+import { ILendingPoolV2 } from "../../../interfaces/aaveV2/ILendingPoolV2.sol";
+import { ILendingPoolAddressesProviderV2 } from "../../../interfaces/aaveV2/ILendingPoolAddressesProviderV2.sol";
+import { DSMath } from "../../../DS/DSMath.sol";
+import { MainnetAaveAddresses } from "./MainnetAaveAddresses.sol";
 
-contract AaveRatioHelper is DSMath {
+contract AaveRatioHelper is DSMath, MainnetAaveAddresses {
 
     function getSafetyRatio(address _market, address _user) public view returns(uint256) {
         ILendingPoolV2 lendingPool = ILendingPoolV2(ILendingPoolAddressesProviderV2(_market).getLendingPool());

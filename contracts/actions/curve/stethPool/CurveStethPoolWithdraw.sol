@@ -1,21 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../../../interfaces/curve/stethPool/ICurveStethPool.sol";
-import "../helpers/CurveHelper.sol";
-import "../../../utils/TokenUtils.sol";
-import "../../../utils/SafeMath.sol";
-import "../../ActionBase.sol";
+import { ICurveStethPool } from "../../../interfaces/curve/stethPool/ICurveStethPool.sol";
+import { CurveHelper } from "../helpers/CurveHelper.sol";
+import { TokenUtils } from "../../../utils/TokenUtils.sol";
+import { ActionBase } from "../../ActionBase.sol";
 
-contract CurveStethPoolWithdraw is ActionBase {
+contract CurveStethPoolWithdraw is ActionBase, CurveHelper {
     using TokenUtils for address;
-    using SafeMath for uint256;
-
-    address constant internal CURVE_STETH_POOL_ADDR = 0xDC24316b9AE028F1497c275EB9192a3Ea0f67022;
-    address constant internal STE_CRV_ADDR = 0x06325440D014e39736583c165C2963BA99fAf14E;
-    address constant internal STETH_ADDR = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
 
     enum ReturnValue {
         WETH,
@@ -70,7 +63,6 @@ contract CurveStethPoolWithdraw is ActionBase {
         require(_params.to != address(0), "to cant be 0x0");
 
         STE_CRV_ADDR.pullTokensIfNeeded(_params.from, _params.maxBurnAmount);
-        STE_CRV_ADDR.approveToken(CURVE_STETH_POOL_ADDR, _params.maxBurnAmount);
 
         burnedLp = ICurveStethPool(CURVE_STETH_POOL_ADDR).remove_liquidity_imbalance(
             _params.amounts,
@@ -84,7 +76,7 @@ contract CurveStethPoolWithdraw is ActionBase {
         
         STETH_ADDR.withdrawTokens(_params.to, _params.amounts[1]);
         // return unburned lp tokens to from
-        STE_CRV_ADDR.withdrawTokens(_params.from, _params.maxBurnAmount.sub(burnedLp));
+        STE_CRV_ADDR.withdrawTokens(_params.from, _params.maxBurnAmount - (burnedLp));
 
         logData = abi.encode(_params.amounts[0], _params.amounts[1], burnedLp);
 
@@ -94,7 +86,7 @@ contract CurveStethPoolWithdraw is ActionBase {
         return (burnedLp, logData);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory params) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
     }
 }

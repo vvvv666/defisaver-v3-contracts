@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../../interfaces/convex/IBooster.sol";
-import "../../interfaces/convex/IBaseRewardPool.sol";
-import "../../utils/TokenUtils.sol";
-import "./helpers/ConvexHelper.sol";
-import "../ActionBase.sol";
+import { IBooster } from "../../interfaces/convex/IBooster.sol";
+import { IBRewardPool } from "../../interfaces/convex/IBRewardPool.sol";
+import { TokenUtils } from "../../utils/TokenUtils.sol";
+import { ConvexHelper } from "./helpers/ConvexHelper.sol";
+import { ActionBase } from "../ActionBase.sol";
 
 contract ConvexDeposit is ConvexHelper, ActionBase {
     using TokenUtils for address;
@@ -25,7 +25,7 @@ contract ConvexDeposit is ConvexHelper, ActionBase {
 
     /// @inheritdoc ActionBase
     function executeAction(
-        bytes calldata _callData,
+        bytes memory _callData,
         bytes32[] memory _subData,
         uint8[] memory _paramMapping,
         bytes32[] memory _returnValues
@@ -43,7 +43,7 @@ contract ConvexDeposit is ConvexHelper, ActionBase {
     }
 
     /// @inheritdoc ActionBase
-    function executeActionDirect(bytes calldata _callData) public payable override {
+    function executeActionDirect(bytes memory _callData) public payable override {
         Params memory params = parseInputs(_callData);
         (, bytes memory logData) = _deposit(params);
         logger.logActionDirectEvent("ConvexDeposit", logData);
@@ -68,7 +68,7 @@ contract ConvexDeposit is ConvexHelper, ActionBase {
         if (_params.option == DepositOption.STAKE) {
             _params.amount = poolInfo.token.pullTokensIfNeeded(_params.from, _params.amount);
             poolInfo.token.approveToken(poolInfo.crvRewards, _params.amount);
-            IBaseRewardPool(poolInfo.crvRewards).stakeFor(_params.to, _params.amount);
+            IBRewardPool(poolInfo.crvRewards).stakeFor(_params.to, _params.amount);
         } else
         if (_params.option == DepositOption.WRAP_AND_STAKE) {
             bool stakeForProxy = _params.to == address(this);
@@ -79,7 +79,7 @@ contract ConvexDeposit is ConvexHelper, ActionBase {
 
             if (!stakeForProxy) {
                 poolInfo.token.approveToken(poolInfo.crvRewards, _params.amount);
-                IBaseRewardPool(poolInfo.crvRewards).stakeFor(_params.to, _params.amount);
+                IBRewardPool(poolInfo.crvRewards).stakeFor(_params.to, _params.amount);
             }
         }
 
@@ -87,7 +87,7 @@ contract ConvexDeposit is ConvexHelper, ActionBase {
         logData = abi.encode(_params);
     }
 
-    function parseInputs(bytes calldata _callData) internal pure returns (Params memory params) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
     }
 }

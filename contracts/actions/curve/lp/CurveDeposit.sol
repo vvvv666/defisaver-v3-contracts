@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../helpers/CurveHelper.sol";
-import "../../../utils/TokenUtils.sol";
-import "../../../interfaces/curve/ICurve3PoolZap.sol";
-import "../../ActionBase.sol";
+import { CurveHelper } from "../helpers/CurveHelper.sol";
+import { TokenUtils } from "../../../utils/TokenUtils.sol";
+import { ICurve3PoolZap } from "../../../interfaces/curve/ICurve3PoolZap.sol";
+import { ActionBase } from "../../ActionBase.sol";
 
 contract CurveDeposit is ActionBase, CurveHelper {
     using TokenUtils for address;
@@ -123,7 +123,7 @@ contract CurveDeposit is ActionBase, CurveHelper {
         return payload = bytes.concat(abi.encodePacked(selector, _amounts, _minMintAmount), optional);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory params) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
     }
 }

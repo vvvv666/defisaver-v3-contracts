@@ -27,17 +27,33 @@ const {
     resetForkToBlock,
     addrs,
     USDC_ADDR,
+    chainIds,
 } = require('../utils');
 
 const network = hre.network.config.name;
+const chainId = chainIds[network];
 
 const compAssets = {
-    USDC_MARKET: {
-        collaterals: ['WETH', 'WBTC', 'COMP', 'UNI', 'LINK'],
-        bAsset: 'USDC',
+    mainnet: {
+        USDC_MARKET: {
+            collaterals: ['WETH', 'WBTC', 'COMP', 'UNI', 'LINK'],
+            bAsset: 'USDC',
+        },
+    },
+    arbitrum: {
+        USDC_MARKET: {
+            collaterals: ['WETH', 'WBTC', 'ARB'], // TODO: add GMX when defisaver/tokens is updated
+            bAsset: 'USDC',
+        },
+    },
+    optimism: {
+        USDC_MARKET: {
+            collaterals: ['WETH', 'WBTC', 'OP'], // TODO: add GMX when defisaver/tokens is updated
+            bAsset: 'USDC',
+        },
     },
 };
-const compMarkets = Object.keys(compAssets);
+const compMarkets = Object.keys(compAssets[network]);
 
 const compV3SupplyTest = async () => {
     describe('CompV3-Supply', async function () {
@@ -46,6 +62,7 @@ const compV3SupplyTest = async () => {
         let senderAcc;
         let proxy;
         let comet;
+        let snapshotId;
 
         before(async () => {
             await resetForkToBlock();
@@ -57,19 +74,22 @@ const compV3SupplyTest = async () => {
             senderAcc = (await hre.ethers.getSigners())[0];
             proxy = await getProxy(senderAcc.address);
         });
+        beforeEach(async () => {
+            snapshotId = await takeSnapshot();
+        });
 
+        afterEach(async () => {
+            await revertToSnapshot(snapshotId);
+        });
         for (let m = 0; m < compMarkets.length; m++) {
-            const collaterals = compAssets[compMarkets[m]].collaterals;
-
+            const collaterals = compAssets[network][compMarkets[m]].collaterals;
             for (let i = 0; i < collaterals.length; i++) {
                 const collName = collaterals[i];
 
                 it(`should supply ${collName} token to CompoundV3`, async () => {
-                    const token = getAssetInfo(collName);
-
+                    const token = getAssetInfo(collName, chainId);
                     const fetchedAmountWithUSD = fetchAmountinUSDPrice(token.symbol, '10000');
                     const amount = hre.ethers.utils.parseUnits(fetchedAmountWithUSD, token.decimals);
-
                     const balanceBefore = await comet.collateralBalanceOf(proxy.address, token.address);
 
                     await supplyCompV3(addrs[network].COMET_USDC_ADDR, proxy, token.address, amount, senderAcc.address, proxy.address);
@@ -78,9 +98,8 @@ const compV3SupplyTest = async () => {
 
                     expect(balanceAfter).to.be.gt(balanceBefore);
                 });
-
                 it(`should supply ${collName} token to CompoundV3 from proxy to eoa`, async () => {
-                    const token = getAssetInfo(collName);
+                    const token = getAssetInfo(collName, chainId);
 
                     const fetchedAmountWithUSD = fetchAmountinUSDPrice(token.symbol, '10000');
                     const amount = hre.ethers.utils.parseUnits(fetchedAmountWithUSD, token.decimals);
@@ -94,11 +113,10 @@ const compV3SupplyTest = async () => {
                     expect(balanceAfter).to.be.gt(balanceBefore);
                 });
             }
+            it(`should supply ${compAssets[network][compMarkets[m]].bAsset} (base asset) to CompoundV3`, async () => {
+                const bAsset = compAssets[network][compMarkets[m]].bAsset;
 
-            it(`should supply ${compAssets[compMarkets[m]].bAsset} (base asset) to CompoundV3`, async () => {
-                const bAsset = compAssets[compMarkets[m]].bAsset;
-
-                const token = getAssetInfo(bAsset);
+                const token = getAssetInfo(bAsset, chainId);
                 const fetchedAmountWithUSD = fetchAmountinUSDPrice(token.symbol, '10000');
                 const amount = hre.ethers.utils.parseUnits(fetchedAmountWithUSD, token.decimals);
 
@@ -111,10 +129,10 @@ const compV3SupplyTest = async () => {
                 expect(balanceAfter).to.be.gt(balanceBefore);
             });
 
-            it(`should supply ${compAssets[compMarkets[m]].bAsset} (base asset) to CompoundV3 from proxy to eoa`, async () => {
-                const bAsset = compAssets[compMarkets[m]].bAsset;
+            it(`should supply ${compAssets[network][compMarkets[m]].bAsset} (base asset) to CompoundV3 from proxy to eoa`, async () => {
+                const bAsset = compAssets[network][compMarkets[m]].bAsset;
 
-                const token = getAssetInfo(bAsset);
+                const token = getAssetInfo(bAsset, chainId);
                 const fetchedAmountWithUSD = fetchAmountinUSDPrice(token.symbol, '10000');
                 const amount = hre.ethers.utils.parseUnits(fetchedAmountWithUSD, token.decimals);
 
@@ -160,14 +178,14 @@ const compV3TransferTest = async () => {
         });
 
         for (let m = 0; m < compMarkets.length; m++) {
-            const collaterals = compAssets[compMarkets[m]].collaterals;
+            const collaterals = compAssets[network][compMarkets[m]].collaterals;
 
             for (let i = 0; i < collaterals.length; i++) {
                 const collName = collaterals[i];
 
                 it(`... should transfer ${collName} from one acc to another`, async () => {
                     const cometContract = await hre.ethers.getContractAt('IComet', addrs[network].COMET_USDC_ADDR);
-                    const assetInfo = getAssetInfo(collName);
+                    const assetInfo = getAssetInfo(collName, chainId);
 
                     const amount = fetchAmountinUSDPrice(collName, '2000');
 
@@ -238,10 +256,10 @@ const compV3TransferTest = async () => {
                 });
             }
 
-            it(`... should transfer ${compAssets[compMarkets[m]].bAsset} (base asset)`, async () => {
-                const bAsset = compAssets[compMarkets[m]].bAsset;
+            it(`... should transfer ${compAssets[network][compMarkets[m]].bAsset} (base asset)`, async () => {
+                const bAsset = compAssets[network][compMarkets[m]].bAsset;
                 const cometContract = await hre.ethers.getContractAt('IComet', addrs[network].COMET_USDC_ADDR);
-                const assetInfo = getAssetInfo(bAsset);
+                const assetInfo = getAssetInfo(bAsset, chainId);
 
                 const supplyAmount = hre.ethers.utils.parseUnits(
                     fetchAmountinUSDPrice(bAsset, '3000'),
@@ -302,6 +320,7 @@ const compV3AllowTest = async () => {
         let senderAcc;
         let ownerAcc;
         let proxy;
+        let snapshotId;
 
         before(async () => {
             await resetForkToBlock();
@@ -310,6 +329,13 @@ const compV3AllowTest = async () => {
             senderAcc = (await hre.ethers.getSigners())[0];
             ownerAcc = (await hre.ethers.getSigners())[1];
             proxy = await getProxy(senderAcc.address);
+        });
+        beforeEach(async () => {
+            snapshotId = await takeSnapshot();
+        });
+
+        afterEach(async () => {
+            await revertToSnapshot(snapshotId);
         });
 
         it('... should test CompoundV3 allow', async () => {
@@ -334,6 +360,7 @@ const compV3WithdrawTest = async () => {
 
         let senderAcc;
         let proxy;
+        let snapshotId;
 
         before(async () => {
             await resetForkToBlock();
@@ -348,19 +375,25 @@ const compV3WithdrawTest = async () => {
             const cometContract = await hre.ethers.getContractAt('IComet', addrs[network].COMET_USDC_ADDR);
             await cometContract.allow(proxy.address, true);
         });
+        beforeEach(async () => {
+            snapshotId = await takeSnapshot();
+        });
+
+        afterEach(async () => {
+            await revertToSnapshot(snapshotId);
+        });
 
         for (let m = 0; m < compMarkets.length; m++) {
-            const collaterals = compAssets[compMarkets[m]].collaterals;
+            const collaterals = compAssets[network][compMarkets[m]].collaterals;
 
             for (let i = 0; i < collaterals.length; i++) {
                 const collName = collaterals[i];
 
                 it(`... should withdraw ${collName} from CompoundV3`, async () => {
-                    const assetInfo = getAssetInfo(collName);
-                    const amount = hre.ethers.utils.parseUnits('1000', assetInfo.decimals);
+                    const assetInfo = getAssetInfo(collName, chainId);
+                    const amount = hre.ethers.utils.parseUnits(fetchAmountinUSDPrice(assetInfo.symbol, '1000'), assetInfo.decimals);
 
                     await supplyCompV3(addrs[network].COMET_USDC_ADDR, proxy, assetInfo.address, amount, senderAcc.address, proxy.address);
-
                     const balanceBefore = await balanceOf(assetInfo.address, senderAcc.address);
 
                     await withdrawCompV3(addrs[network].COMET_USDC_ADDR, proxy, assetInfo.address, amount, proxy.address, senderAcc.address);
@@ -371,7 +404,7 @@ const compV3WithdrawTest = async () => {
                 });
 
                 it(`... should withdraw ${collName} from CompoundV3 for an EOA`, async () => {
-                    const assetInfo = getAssetInfo(collName);
+                    const assetInfo = getAssetInfo(collName, chainId);
                     const amount = hre.ethers.utils.parseUnits(fetchAmountinUSDPrice(assetInfo.symbol, '1000'), assetInfo.decimals);
 
                     await supplyCompV3(addrs[network].COMET_USDC_ADDR, proxy, assetInfo.address, amount, senderAcc.address, senderAcc.address);
@@ -386,9 +419,9 @@ const compV3WithdrawTest = async () => {
                 });
             }
 
-            it(`... should withdraw MAX.UINT ${compAssets[compMarkets[m]].bAsset} (base asset)`, async () => {
-                const bAsset = compAssets[compMarkets[m]].bAsset;
-                const assetInfo = getAssetInfo(bAsset);
+            it(`... should withdraw MAX.UINT ${compAssets[network][compMarkets[m]].bAsset} (base asset)`, async () => {
+                const bAsset = compAssets[network][compMarkets[m]].bAsset;
+                const assetInfo = getAssetInfo(bAsset, chainId);
                 const amount = hre.ethers.utils.parseUnits('1000', assetInfo.decimals);
 
                 await supplyCompV3(addrs[network].COMET_USDC_ADDR, proxy, assetInfo.address, amount, senderAcc.address, proxy.address);
@@ -410,9 +443,9 @@ const compV3WithdrawTest = async () => {
                 expect(balanceAfter).to.be.gt(balanceBefore);
             });
 
-            it(`... should withdraw ${compAssets[compMarkets[m]].bAsset} (base asset)`, async () => {
-                const bAsset = compAssets[compMarkets[m]].bAsset;
-                const assetInfo = getAssetInfo(bAsset);
+            it(`... should withdraw ${compAssets[network][compMarkets[m]].bAsset} (base asset)`, async () => {
+                const bAsset = compAssets[network][compMarkets[m]].bAsset;
+                const assetInfo = getAssetInfo(bAsset, chainId);
                 const amount = hre.ethers.utils.parseUnits('1000', assetInfo.decimals);
 
                 await supplyCompV3(addrs[network].COMET_USDC_ADDR, proxy, assetInfo.address, amount, senderAcc.address, proxy.address);
@@ -444,6 +477,7 @@ const compV3BorrowTest = async () => {
 
         let senderAcc;
         let proxy;
+        let snapshotId;
 
         before(async () => {
             await resetForkToBlock();
@@ -457,14 +491,21 @@ const compV3BorrowTest = async () => {
             const cometContract = await hre.ethers.getContractAt('IComet', addrs[network].COMET_USDC_ADDR);
             await cometContract.allow(proxy.address, true);
         });
+        beforeEach(async () => {
+            snapshotId = await takeSnapshot();
+        });
+
+        afterEach(async () => {
+            await revertToSnapshot(snapshotId);
+        });
 
         for (let m = 0; m < compMarkets.length; m++) {
-            const bAsset = compAssets[compMarkets[m]].bAsset;
-            const collaterals = compAssets[compMarkets[m]].collaterals;
+            const bAsset = compAssets[network][compMarkets[m]].bAsset;
+            const collaterals = compAssets[network][compMarkets[m]].collaterals;
 
             it(`... should test CompoundV3 borrow ${bAsset}`, async () => {
-                const assetInfo = getAssetInfo(bAsset);
-                const colInfo = getAssetInfo(collaterals[0]);
+                const assetInfo = getAssetInfo(bAsset, chainId);
+                const colInfo = getAssetInfo(collaterals[0], chainId);
                 await setBalance(colInfo.address, senderAcc.address, hre.ethers.utils.parseEther('100'));
 
                 const borrowingAmount = hre.ethers.utils.parseUnits(
@@ -482,7 +523,6 @@ const compV3BorrowTest = async () => {
                 );
 
                 const balanceBefore = await balanceOf(assetInfo.address, senderAcc.address);
-
                 await borrowCompV3(addrs[network].COMET_USDC_ADDR, proxy, borrowingAmount, proxy.address, senderAcc.address);
 
                 const balanceAfter = await balanceOf(assetInfo.address, senderAcc.address);
@@ -491,8 +531,8 @@ const compV3BorrowTest = async () => {
             });
 
             it(`... should test CompoundV3 borrow ${bAsset} for EOA`, async () => {
-                const assetInfo = getAssetInfo(bAsset);
-                const colInfo = getAssetInfo(collaterals[0]);
+                const assetInfo = getAssetInfo(bAsset, chainId);
+                const colInfo = getAssetInfo(collaterals[0], chainId);
                 await setBalance(colInfo.address, senderAcc.address, hre.ethers.utils.parseEther('100'));
 
                 const borrowingAmount = hre.ethers.utils.parseUnits(
@@ -549,14 +589,14 @@ const compV3PaybackTest = async () => {
         });
 
         for (let m = 0; m < compMarkets.length; m++) {
-            const bAsset = compAssets[compMarkets[m]].bAsset;
-            const collaterals = compAssets[compMarkets[m]].collaterals;
+            const bAsset = compAssets[network][compMarkets[m]].bAsset;
+            const collaterals = compAssets[network][compMarkets[m]].collaterals;
 
             it(`... Payback part of ${bAsset} debt`, async () => {
                 const cometContract = await hre.ethers.getContractAt('IComet', addrs[network].COMET_USDC_ADDR);
 
-                const assetInfo = getAssetInfo(bAsset);
-                const collAssetInfo = getAssetInfo(collaterals[0]);
+                const assetInfo = getAssetInfo(bAsset, chainId);
+                const collAssetInfo = getAssetInfo(collaterals[0], chainId);
 
                 const borrowingAmount = hre.ethers.utils.parseUnits(
                     fetchAmountinUSDPrice(bAsset, '10000'),
@@ -595,8 +635,8 @@ const compV3PaybackTest = async () => {
             it(`... Payback whole ${bAsset} debt`, async () => {
                 const cometContract = await hre.ethers.getContractAt('IComet', addrs[network].COMET_USDC_ADDR);
 
-                const assetInfo = getAssetInfo(bAsset);
-                const collAssetInfo = getAssetInfo(collaterals[0]);
+                const assetInfo = getAssetInfo(bAsset, chainId);
+                const collAssetInfo = getAssetInfo(collaterals[0], chainId);
 
                 const amount = hre.ethers.utils.parseUnits('1000000', 18);
                 await setBalance(assetInfo.address, senderAcc.address, amount);
@@ -642,6 +682,7 @@ const compV3ClaimTest = async () => {
 
         let senderAcc;
         let proxy;
+        let snapshotId;
 
         before(async () => {
             await resetForkToBlock();
@@ -651,6 +692,13 @@ const compV3ClaimTest = async () => {
             await redeploy('CompV3Borrow');
             senderAcc = (await hre.ethers.getSigners())[0];
             proxy = await getProxy(senderAcc.address);
+        });
+        beforeEach(async () => {
+            snapshotId = await takeSnapshot();
+        });
+
+        afterEach(async () => {
+            await revertToSnapshot(snapshotId);
         });
 
         it('... claim usdc tokens for proxy account', async () => {

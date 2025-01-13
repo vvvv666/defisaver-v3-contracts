@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../interfaces/ITrigger.sol";
-import "../interfaces/morpho/IMorphoAaveV2Lens.sol";
-import "../actions/morpho/helpers/MorphoHelper.sol";
-import "../utils/TransientStorage.sol";
+import { ITrigger } from "../interfaces/ITrigger.sol";
+import { MorphoAaveV2Helper } from "../actions/morpho/aaveV2/helpers/MorphoAaveV2Helper.sol";
+import { TransientStorage } from "../utils/TransientStorage.sol";
+import { TriggerHelper } from "./helpers/TriggerHelper.sol";
 
-contract MorphoAaveV2RatioTrigger is ITrigger, MorphoHelper {
+contract MorphoAaveV2RatioTrigger is ITrigger, MorphoAaveV2Helper, TriggerHelper {
 
     enum RatioState { OVER, UNDER }
     
@@ -25,7 +25,7 @@ contract MorphoAaveV2RatioTrigger is ITrigger, MorphoHelper {
         override
         returns (bool)
     {
-        SubParams memory triggerSubData = parseInputs(_subData);
+        SubParams memory triggerSubData = parseSubInputs(_subData);
         uint256 currRatio = getSafetyRatio(triggerSubData.user);
         
         if (currRatio == 0) return false;
@@ -43,14 +43,14 @@ contract MorphoAaveV2RatioTrigger is ITrigger, MorphoHelper {
         return false;
     }
 
-    function parseInputs(bytes memory _subData) internal pure returns (SubParams memory params) {
+    function parseSubInputs(bytes memory _subData) public pure returns (SubParams memory params) {
         params = abi.decode(_subData, (SubParams));
     }
+
     function changedSubData(bytes memory _subData) public pure override  returns (bytes memory) {
     }
     
     function isChangeable() public pure override returns (bool){
         return false;
     }
-
 }
