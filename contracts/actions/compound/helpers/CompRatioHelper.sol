@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../../../DS/DSMath.sol";
-import "../../../interfaces/compound/ICompoundOracle.sol";
-import "../../../interfaces/compound/IComptroller.sol";
-import "../../../interfaces/compound/ICToken.sol";
-import "../../../utils/Exponential.sol";
+import { DSMath } from "../../../DS/DSMath.sol";
+import { ICompoundOracle } from "../../../interfaces/compound/ICompoundOracle.sol";
+import { IComptroller } from "../../../interfaces/compound/IComptroller.sol";
+import { ICToken } from "../../../interfaces/compound/ICToken.sol";
+import { Exponential } from "../../../utils/math/Exponential.sol";
+import { MainnetCompAddresses } from "./MainnetCompAddresses.sol";
 
 
-contract CompRatioHelper is Exponential, DSMath {
+contract CompRatioHelper is Exponential, DSMath, MainnetCompAddresses {
     // solhint-disable-next-line const-name-snakecase
     IComptroller public constant comp = IComptroller(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
 

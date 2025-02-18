@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
 abstract contract IComptroller {
     struct CompMarketState {
@@ -37,4 +37,7 @@ abstract contract IComptroller {
     function getAccountLiquidity(address account) external virtual view returns (uint256, uint256, uint256);
 
     function oracle() public virtual view returns (address);
+    
+    function mintGuardianPaused(address cToken) external virtual view returns (bool);
+    function borrowGuardianPaused(address cToken) external virtual view returns (bool);
 }

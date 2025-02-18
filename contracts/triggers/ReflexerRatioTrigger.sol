@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../auth/AdminAuth.sol";
-import "../actions/reflexer/helpers/ReflexerRatioHelper.sol";
-import "../interfaces/ITrigger.sol";
+import { AdminAuth } from "../auth/AdminAuth.sol";
+import { ReflexerRatioHelper } from "../actions/reflexer/helpers/ReflexerRatioHelper.sol";
+import { ITrigger } from "../interfaces/ITrigger.sol";
 
 /// @title Trigger contract that verifies if the Reflexer position went over/under the subbed ratio
 contract ReflexerRatioTrigger is ITrigger, AdminAuth, ReflexerRatioHelper {
@@ -47,7 +47,7 @@ contract ReflexerRatioTrigger is ITrigger, AdminAuth, ReflexerRatioHelper {
         return false;
     }
 
-    function parseSubInputs(bytes memory _subData) internal pure returns (SubParams memory params) {
+    function parseSubInputs(bytes memory _subData) public pure returns (SubParams memory params) {
         params = abi.decode(_subData, (SubParams));
     }
 

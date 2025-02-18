@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../auth/AdminAuth.sol";
-import "../interfaces/ITrigger.sol";
-import "../actions/liquity/helpers/CBHelper.sol";
+import { AdminAuth } from "../auth/AdminAuth.sol";
+import { ITrigger } from "../interfaces/ITrigger.sol";
+import { CBHelper } from "../actions/liquity/helpers/CBHelper.sol";
+import { IChickenBondManager } from "../interfaces/liquity/IChickenBondManager.sol";
 
 /// @title Chicken Bonds trigger when the optimal amount of bLUSD has accrued
 contract CBRebondTrigger is ITrigger, AdminAuth, CBHelper {
@@ -14,7 +15,7 @@ contract CBRebondTrigger is ITrigger, AdminAuth, CBHelper {
     }
 
     function isTriggered(bytes memory, bytes memory _subData) public view override returns (bool) {
-        SubParams memory triggerSubData = parseInputs(_subData);
+        SubParams memory triggerSubData = parseSubInputs(_subData);
         IChickenBondManager.BondData memory bondData = CBManager.getBondData(triggerSubData.bondID);
 
         // bond must be in active state
@@ -42,7 +43,7 @@ contract CBRebondTrigger is ITrigger, AdminAuth, CBHelper {
         return false;
     }
 
-    function parseInputs(bytes memory _subData) internal pure returns (SubParams memory params) {
+    function parseSubInputs(bytes memory _subData) public pure returns (SubParams memory params) {
         params = abi.decode(_subData, (SubParams));
     }
 

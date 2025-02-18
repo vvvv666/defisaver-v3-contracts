@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../../ActionBase.sol";
-import "../helpers/CurveHelper.sol";
-import "../../../utils/TokenUtils.sol";
+import { ActionBase } from "../../ActionBase.sol";
+import { CurveHelper } from "../helpers/CurveHelper.sol";
+import { TokenUtils } from "../../../utils/TokenUtils.sol";
 
-import "../../../interfaces/curve/ILiquidityGauge.sol";
+import { ILiquidityGauge } from "../../../interfaces/curve/ILiquidityGauge.sol";
 
 contract CurveGaugeWithdraw is ActionBase, CurveHelper {
     using TokenUtils for address;
@@ -60,7 +59,7 @@ contract CurveGaugeWithdraw is ActionBase, CurveHelper {
         return (_params.amount, logData);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory params) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
     }
 }

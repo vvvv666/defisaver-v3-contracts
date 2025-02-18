@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../interfaces/IWETH.sol";
-import "./SafeERC20.sol";
+import { IWETH } from "../interfaces/IWETH.sol";
+import { IERC20 } from "../interfaces/IERC20.sol";
+import { SafeERC20 } from "./SafeERC20.sol";
 
 library TokenUtils {
     using SafeERC20 for IERC20;
 
-    address public constant WSTETH_ADDR = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
-    address public constant STETH_ADDR = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
-
     address public constant WETH_ADDR = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant ETH_ADDR = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
+    /// @dev Only approves the amount if allowance is lower than amount, does not decrease allowance
     function approveToken(
         address _tokenAddr,
         address _to,

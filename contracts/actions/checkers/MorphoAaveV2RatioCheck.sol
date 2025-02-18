@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../ActionBase.sol";
-import "../../interfaces/morpho/IMorphoAaveV2Lens.sol";
-import "../../actions/morpho/helpers/MorphoHelper.sol";
-import "../../utils/TransientStorage.sol";
+import { ActionBase } from "../ActionBase.sol";
+import { MorphoAaveV2Helper } from "../../actions/morpho/aaveV2/helpers/MorphoAaveV2Helper.sol";
+import { TransientStorage } from "../../utils/TransientStorage.sol";
 
-contract MorphoAaveV2RatioCheck is ActionBase, MorphoHelper {
+contract MorphoAaveV2RatioCheck is ActionBase, MorphoAaveV2Helper {
 
     /// @dev 5% offset acceptable
     uint256 internal constant RATIO_OFFSET = 50000000000000000;

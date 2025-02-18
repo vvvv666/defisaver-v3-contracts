@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../../../interfaces/curve/stethPool/ICurveStethPool.sol";
-import "../helpers/CurveHelper.sol";
-import "../../../utils/TokenUtils.sol";
-import "../../ActionBase.sol";
+import { ICurveStethPool } from "../../../interfaces/curve/stethPool/ICurveStethPool.sol";
+import { CurveHelper } from "../helpers/CurveHelper.sol";
+import { TokenUtils } from "../../../utils/TokenUtils.sol";
+import { ActionBase } from "../../ActionBase.sol";
 
-contract CurveStethPoolDeposit is ActionBase {
+contract CurveStethPoolDeposit is ActionBase, CurveHelper {
     using TokenUtils for address;
-
-    address constant internal CURVE_STETH_POOL_ADDR = 0xDC24316b9AE028F1497c275EB9192a3Ea0f67022;
-    address constant internal STE_CRV_ADDR = 0x06325440D014e39736583c165C2963BA99fAf14E;
-    address constant internal STETH_ADDR = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
 
     struct Params {
         address from;           // address where to pull tokens from
@@ -78,7 +73,7 @@ contract CurveStethPoolDeposit is ActionBase {
         logData = abi.encode(_params.amounts[0], _params.amounts[1], receivedLp);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory params) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
     }
 }

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../../utils/TokenUtils.sol";
-import "../ActionBase.sol";
-import "./helpers/AaveHelper.sol";
+import { TokenUtils } from "../../utils/TokenUtils.sol";
+import { ActionBase } from "../ActionBase.sol";
+import { AaveHelper } from "./helpers/AaveHelper.sol";
 
 /// @title Switch if you'll use tokens for collateral on aave for a market
 contract AaveCollateralSwitch is ActionBase, AaveHelper {
@@ -48,7 +47,7 @@ contract AaveCollateralSwitch is ActionBase, AaveHelper {
         }
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory inputData) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory inputData) {
         inputData = abi.decode(_callData, (Params));
     }
 }

@@ -2,6 +2,7 @@ const { expect } = require('chai');
 const hre = require('hardhat');
 
 const dfs = require('@defisaver/sdk');
+const { getAssetInfo } = require('@defisaver/tokens');
 
 const ISubscriptionsABI = require('../../artifacts/contracts/interfaces/ISubscriptions.sol/ISubscriptions.json').abi;
 const {
@@ -26,14 +27,15 @@ const {
     getNftOwner,
     WETH_ADDRESS,
     ETH_ADDR,
-    DFS_REG_CONTROLLER,
-    ADMIN_ACC,
     DAI_ADDR,
     LUSD_ADDR,
     BOND_NFT_ADDR,
     takeSnapshot,
     revertToSnapshot,
     WBTC_ADDR,
+    addrs,
+    getNetwork,
+    chainIds,
 } = require('../utils');
 
 const { fetchMakerAddresses } = require('../utils-mcd');
@@ -45,11 +47,102 @@ const {
     updateSubData,
     createChickenBond,
     transferNFT,
+    kingClaim,
 } = require('../actions');
 const { addBotCaller, createStrategy, subToStrategy } = require('../utils-strategies');
 const { createMcdCloseStrategy } = require('../strategies');
 const { subMcdCloseStrategy } = require('../strategy-subs');
 const { RATIO_STATE_OVER, createChainLinkPriceTrigger } = require('../triggers');
+
+const permitTokenTest = async () => {
+    /// @dev for running this test you need to add chainId : 1 to local and hardhat networks in cfg
+    describe('Permit-Token', function () {
+        this.timeout(80000);
+
+        let senderAcc; let proxy;
+
+        before(async () => {
+            senderAcc = (await hre.ethers.getSigners())[0];
+            proxy = await getProxy(senderAcc.address);
+        });
+        it('... should permit tokens for DSProxy to pull from eoa', async () => {
+            const snapshot = await takeSnapshot();
+            const network = hre.network.config.name;
+            const chainId = chainIds[network];
+            const wsteth = getAssetInfo('wsteth', chainId);
+            const wstethAddress = wsteth.address;
+
+            const wstethPermitContract = await hre.ethers.getContractAt('IERC20Permit', wstethAddress);
+            const nonce = await wstethPermitContract.nonces(senderAcc.address);
+            const wstethContract = await hre.ethers.getContractAt('IERC20', wstethAddress);
+            const name = await wstethContract.name();
+            const version = '1';
+
+            const value = hre.ethers.utils.parseUnits('10000', 18);
+            const deadline = '2015495230';
+
+            const signature = hre.ethers.utils.splitSignature(
+                // eslint-disable-next-line no-underscore-dangle
+                await senderAcc._signTypedData(
+                    {
+                        name,
+                        version,
+                        chainId,
+                        verifyingContract: wstethAddress,
+                    },
+                    {
+                        Permit: [
+                            {
+                                name: 'owner',
+                                type: 'address',
+                            },
+                            {
+                                name: 'spender',
+                                type: 'address',
+                            },
+                            {
+                                name: 'value',
+                                type: 'uint256',
+                            },
+                            {
+                                name: 'nonce',
+                                type: 'uint256',
+                            },
+                            {
+                                name: 'deadline',
+                                type: 'uint256',
+                            },
+                        ],
+                    },
+                    {
+                        owner: senderAcc.address,
+                        spender: proxy.address,
+                        value,
+                        nonce,
+                        deadline,
+                    },
+                ),
+            );
+
+            const permitAction = new dfs.actions.basic.PermitTokenAction(
+                wstethAddress,
+                senderAcc.address,
+                proxy.address,
+                value, deadline, signature.v, signature.r, signature.s,
+            );
+            const functionData = permitAction.encodeForDsProxyCall()[1];
+
+            const allowanceBefore = await wstethContract.allowance(
+                senderAcc.address, proxy.address,
+            );
+            await executeAction('PermitToken', functionData, proxy);
+            const allowanceAfter = await wstethContract.allowance(senderAcc.address, proxy.address);
+
+            expect(allowanceAfter.sub(allowanceBefore)).to.eq(value);
+            await revertToSnapshot(snapshot);
+        });
+    });
+};
 
 const wrapEthTest = async () => {
     describe('Wrap-Eth', function () {
@@ -314,6 +407,59 @@ const sendTokenTest = async () => {
     });
 };
 
+const approveTokenTest = async () => {
+    describe('Approve-Token', function () {
+        this.timeout(80000);
+
+        let senderAcc; let proxy;
+
+        before(async () => {
+            senderAcc = (await hre.ethers.getSigners())[0];
+            proxy = await getProxy(senderAcc.address);
+        });
+        it('... should approve DSProxy WETH for someone else to spend', async () => {
+            const weth = getAssetInfo('WETH');
+            const wethAddress = weth.address;
+            const amount = hre.ethers.utils.parseUnits('10', 18);
+            const approveAction = new dfs.actions.basic.ApproveTokenAction(
+                wethAddress, senderAcc.address, amount,
+            );
+            const functionData = approveAction.encodeForDsProxyCall()[1];
+
+            // Set WETH Balances
+            await setBalance(wethAddress, proxy.address, amount);
+            await setBalance(wethAddress, senderAcc.address, hre.ethers.utils.parseUnits('0', 18));
+            await executeAction('ApproveToken', functionData, proxy);
+
+            let tokenContract = await hre.ethers.getContractAt('IERC20', wethAddress);
+            tokenContract = tokenContract.connect(senderAcc);
+            await tokenContract.transferFrom(proxy.address, senderAcc.address, amount);
+            expect(await balanceOf(wethAddress, senderAcc.address)).to.be.eq(amount);
+            expect(await balanceOf(wethAddress, proxy.address)).to.be.eq('0');
+        });
+        it('... should approve DSProxy USDT for someone else to spend', async () => {
+            const usdt = getAssetInfo('USDT');
+            const usdtAddress = usdt.address;
+            const amount = hre.ethers.utils.parseUnits('10', 6);
+            const approveAction = new dfs.actions.basic.ApproveTokenAction(
+                usdtAddress, senderAcc.address, amount,
+            );
+            const functionData = approveAction.encodeForDsProxyCall()[1];
+
+            // Set USDT Balances
+            await setBalance(usdtAddress, proxy.address, amount);
+            await setBalance(usdtAddress, senderAcc.address, hre.ethers.utils.parseUnits('0', 18));
+            await executeAction('ApproveToken', functionData, proxy);
+
+            let tokenContract = await hre.ethers.getContractAt('IERC20', usdtAddress);
+            tokenContract = tokenContract.connect(senderAcc);
+            await tokenContract.transferFrom(proxy.address, senderAcc.address, amount);
+            expect(await balanceOf(usdtAddress, senderAcc.address)).to.be.eq(amount);
+            expect(await balanceOf(usdtAddress, proxy.address)).to.be.eq('0');
+        });
+    });
+};
+
 const sendTokensTest = async () => {
     describe('Send-Tokens', function () {
         this.timeout(80000);
@@ -512,27 +658,30 @@ const changeOwnerTest = async () => {
         this.timeout(80000);
 
         let senderAcc; let senderAcc2; let proxy;
+        const network = getNetwork();
 
-        const ADMIN_VAULT = '0xCCf3d848e08b94478Ed8f46fFead3008faF581fD';
+        const ADMIN_VAULT = addrs[network].ADMIN_VAULT;
+        const ADMIN_ACC = addrs[network].ADMIN_ACC;
 
         before(async () => {
-            await impersonateAccount(ADMIN_ACC);
-
-            const signer = await hre.ethers.provider.getSigner(ADMIN_ACC);
-
-            const adminVaultInstance = await hre.ethers.getContractFactory('AdminVault', signer);
-            const adminVault = await adminVaultInstance.attach(ADMIN_VAULT);
-
-            adminVault.connect(signer);
-
-            // change owner in registry to dfsRegController
-            await adminVault.changeOwner(DFS_REG_CONTROLLER);
-
-            await stopImpersonatingAccount(ADMIN_ACC);
-
             senderAcc = (await hre.ethers.getSigners())[0];
             senderAcc2 = (await hre.ethers.getSigners())[1];
             proxy = await getProxy(senderAcc.address);
+
+            if (network === 'mainnet') {
+                // DFSProxyRegistry must be owned by DFSProxyRegistryController on mainnet
+                await sendEther(senderAcc, ADMIN_ACC, '1');
+                await impersonateAccount(ADMIN_ACC);
+
+                const signer = await hre.ethers.provider.getSigner(ADMIN_ACC);
+
+                const adminVaultInstance = await hre.ethers.getContractFactory('AdminVault', signer);
+                const adminVault = await adminVaultInstance.attach(ADMIN_VAULT);
+                adminVault.connect(signer);
+                // change owner in registry to dfsRegController
+                await adminVault.changeOwner(addrs[network].DFS_REG_CONTROLLER);
+                await stopImpersonatingAccount(ADMIN_ACC);
+            }
         });
 
         it('... should change owner of users DSProxy', async () => {
@@ -894,6 +1043,66 @@ const transferNFTTest = async () => {
     });
 };
 
+const kingClaimTest = async () => {
+    describe('Claim KING token', function () {
+        this.timeout(1000000);
+
+        let senderAcc;
+        let proxy;
+        let CLAIMER_EOA;
+
+        before(async () => {
+            await resetForkToBlock(21868568);
+            await redeploy('KingClaim');
+
+            CLAIMER_EOA = '0xd7215DbBd6e595a57e4dDc7786EF068F8dA8B564';
+            const CLAIMER_SW = '0x6a1F4f0AD047C7050F7ddc0563c0aaD3931C4771';
+
+            // send some eth to senderAcc
+            const zeroAddress = hre.ethers.constants.AddressZero;
+            const zeroAcc = await hre.ethers.provider.getSigner(zeroAddress);
+            await impersonateAccount(zeroAddress);
+            await sendEther(zeroAcc, CLAIMER_EOA, '5');
+
+            await impersonateAccount(CLAIMER_EOA);
+            senderAcc = await hre.ethers.provider.getSigner(CLAIMER_EOA);
+            proxy = await hre.ethers.getContractAt('IDSProxy', CLAIMER_SW);
+            proxy = proxy.connect(senderAcc);
+        });
+
+        it('... should clain KING token from proxy to eoa', async () => {
+            const amount = '54828777210681748232';
+            const root = '0x2643c31ec7b7d9d1e8aa5202453912b1d02fd33c91b2b07c4dc3fc5965e473c5';
+            const proofs = [
+                '0xce3b0e9d8e457ea2f34674437c4f1545124cbc5c8ba232cc00a4df86d4bca925',
+                '0x9832eba0cfbcd5d45167002e2731115a909e6f137ec473742e5690b09fbca0c2',
+                '0xc57ecb7b9498e59468dd8d4e4f08b2378a1ecb6f432ae213cf4bd4e83b85196b',
+                '0xf2504cde069ba76e707c4dd232c1d3a98e0864cd45862ca049c2dddbe187646d',
+                '0xe00a819ae4d6085599af1362024d87235aae09a61bd6743d4b426f08596907eb',
+                '0x7abad045ad476d86a34ffff1e011fcebf2e056e14a120585359590d6d8b380ba',
+                '0xe736f578c28e41b97fac9ed776299243718faa403f0cc2b8d09f429ae83eafee',
+                '0x5d8112314b3c49c901483d9a58bb85b3526b5f9b243cf6f8bb5360f17a33fe57',
+                '0xf7529a3b24d2481c893f391fc0f55d6dc86df5ae588dafcd3e6d92ab649510fe',
+                '0x24f1c608f3073ac6155595b27f7532a6a6fa42acda0c079bc373016d01ccb255',
+                '0x2dfba18c8a9129cb5a4315cea917e64107bf0d42b0ccf462809d485148d95211',
+                '0x5490528d35e6367e477ed62ba4aae078f4c04e370336c4a899f022cbcdb738d8',
+                '0x07cc8ffd39c9a1fdc8b36c70df7f980c18d2a22eb90095e0b01963bff4e16738',
+                '0x1dd856a0ae64cbf033ae41de4ae796d94c0a7c7b8ae59158ef22994051a6ecb4',
+                '0xf1e9c75979ef59d6eba5cb84a528c1781f2aa0bc6dd3d910c7db0fd16036c856',
+                '0x3d07078075364fe963edacb88bea86f59af72035777a6c70b4ef68c5ee6b7bfc',
+                '0x937fc65e59dee9333ca48b9e7856503d9ee7d4bb6a976237adf78204955eb2cd',
+                '0x31db96f1d6414944499d1744f6f248b702c9dc15ff7dd9602313ef634d023fb2',
+                '0x9c93e0557e3de0a70f3fa159063624ae636966ace1605b3504011c90e55a0c1e',
+            ];
+            const balanceBefore = await balanceOf('0x8F08B70456eb22f6109F57b8fafE862ED28E6040', CLAIMER_EOA);
+            await kingClaim(proxy, CLAIMER_EOA, amount, root, proofs);
+            const balanceAfter = await balanceOf('0x8F08B70456eb22f6109F57b8fafE862ED28E6040', CLAIMER_EOA);
+            console.log(balanceAfter);
+            expect((balanceAfter).sub(balanceBefore)).to.be.eq(amount);
+        });
+    });
+};
+
 const deployUtilsActionsContracts = async () => {
     await redeploy('SendTokenAndUnwrap');
     await redeploy('WrapEth');
@@ -909,6 +1118,7 @@ const deployUtilsActionsContracts = async () => {
     await redeploy('UpdateSub');
     await redeploy('ToggleSub');
     await redeploy('TransferNFT');
+    await redeploy('KingClaim');
 };
 
 const utilsActionsFullTest = async () => {
@@ -942,4 +1152,7 @@ module.exports = {
     toggleSubDataTest,
     transferNFTTest,
     sendTokensTest,
+    approveTokenTest,
+    permitTokenTest,
+    kingClaimTest,
 };

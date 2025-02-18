@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../helpers/LiquityHelper.sol";
-import "../../../utils/TokenUtils.sol";
-import "../../ActionBase.sol";
+import { LiquityHelper } from "../helpers/LiquityHelper.sol";
+import { TokenUtils } from "../../../utils/TokenUtils.sol";
+import { ActionBase } from "../../ActionBase.sol";
 
 contract LiquityClaim is ActionBase, LiquityHelper {
     using TokenUtils for address;
@@ -56,7 +55,7 @@ contract LiquityClaim is ActionBase, LiquityHelper {
         logData = abi.encode(_to, claimableColl);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory params) {
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
     }
 }

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
+pragma solidity =0.8.24;
 
-import "../../interfaces/IWETH.sol";
-import "../../utils/TokenUtils.sol";
-import "../ActionBase.sol";
-import "./helpers/AaveHelper.sol";
+import { TokenUtils } from "../../utils/TokenUtils.sol";
+import { ActionBase } from "../ActionBase.sol";
+import { AaveHelper } from "./helpers/AaveHelper.sol";
+import { ILendingPoolV2 } from "../../interfaces/aaveV2/ILendingPoolV2.sol";
 
 /// @title Payback a token a user borrowed from an Aave market
 contract AavePayback is ActionBase, AaveHelper {
@@ -69,13 +69,12 @@ contract AavePayback is ActionBase, AaveHelper {
     //////////////////////////// ACTION LOGIC ////////////////////////////
 
     /// @notice User paybacks tokens to the Aave protocol
-    /// @dev User needs to approve the DSProxy to pull the _tokenAddr tokens
     /// @param _market Address provider for specific market
-    /// @param _tokenAddr The address of the token to be payed back
-    /// @param _amount Amount of tokens to be payed back
+    /// @param _tokenAddr The address of the token to be paid back
+    /// @param _amount Amount of tokens to be paid back
     /// @param _rateMode Type of borrow debt [Stable: 1, Variable: 2]
     /// @param _from Where are we pulling the payback tokens amount from
-    /// @param _onBehalf For what user we are paying back the debt, defaults to proxy
+    /// @param _onBehalf For what user we are paying back the debt, defaults to user's wallet
     function _payback(
         address _market,
         address _tokenAddr,
@@ -84,7 +83,7 @@ contract AavePayback is ActionBase, AaveHelper {
         address _from,
         address _onBehalf
     ) internal returns (uint256, bytes memory) {
-        // default to onBehalf of proxy
+        // default to onBehalf of user's wallet
         if (_onBehalf == address(0)) {
             _onBehalf = address(this);
         }
@@ -117,17 +116,5 @@ contract AavePayback is ActionBase, AaveHelper {
 
     function parseInputs(bytes memory _callData) public pure returns (Params memory params) {
         params = abi.decode(_callData, (Params));
-    }
-
-    function getWholeDebt(address _market, address _tokenAddr, uint _borrowType, address _debtOwner) internal view returns (uint256) {
-        IAaveProtocolDataProviderV2 dataProvider = getDataProvider(_market);
-        (, uint256 borrowsStable, uint256 borrowsVariable, , , , , , ) =
-            dataProvider.getUserReserveData(_tokenAddr, _debtOwner);
-
-        if (_borrowType == STABLE_ID) {
-            return borrowsStable;
-        } else if (_borrowType == VARIABLE_ID) {
-            return borrowsVariable;
-        }
     }
 }

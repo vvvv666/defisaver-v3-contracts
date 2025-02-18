@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.24;
 
-import "../ActionBase.sol";
-import "./helpers/AaveHelper.sol";
+import { ActionBase } from "../ActionBase.sol";
+import { AaveHelper } from "./helpers/AaveHelper.sol";
 
 contract AaveClaimStkAave is ActionBase, AaveHelper {
 
@@ -58,7 +57,7 @@ contract AaveClaimStkAave is ActionBase, AaveHelper {
         logData = abi.encode(_params, claimedAmount);
     }
 
-    function parseInputs(bytes memory _callData) internal pure returns (Params memory params)
+    function parseInputs(bytes memory _callData) public pure returns (Params memory params)
     {
         params = abi.decode(_callData, (Params));
     }

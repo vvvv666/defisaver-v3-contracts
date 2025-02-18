@@ -1,13 +1,20 @@
+/* eslint-disable max-len */
+/* eslint-disable no-else-return */
 /* eslint-disable import/no-unresolved */
 /* eslint-disable no-await-in-loop */
-const { default: curve } = require('@curvefi/api');
-const hre = require('hardhat');
+// const { default: curve } = require('@curvefi/api');
+const curve = import('@curvefi/api');
 const fs = require('fs');
+const hre = require('hardhat');
 const { getAssetInfo, getAssetInfoByAddress } = require('@defisaver/tokens');
 const { expect } = require('chai');
 const storageSlots = require('./storageSlots.json');
 
+const { getAllFiles } = require('../scripts/hardhat-tasks-functions');
+
 const { deployAsOwner, deployContract } = require('../scripts/utils/deployer');
+
+const { createSafe, executeSafeTx } = require('./utils-safe');
 
 const strategyStorageBytecode = require('../artifacts/contracts/core/strategy/StrategyStorage.sol/StrategyStorage.json').deployedBytecode;
 const subStorageBytecode = require('../artifacts/contracts/core/strategy/SubStorage.sol/SubStorage.json').deployedBytecode;
@@ -28,26 +35,41 @@ const addrs = {
         ETH_ADDR: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
         TOKEN_GROUP_REGISTRY: '0xcA49e64FE1FE8be40ED30F682edA1b27a6c8611c',
         FEE_RECEIVER: '0x6467e807dB1E71B9Ef04E0E3aFb962E4B0900B2B',
-        USDC_ADDR: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        TX_SAVER_FEE_RECEIVER: '0x0eD7f3223266Ca1694F85C23aBe06E614Af3A479',
+        FEE_RECIPIENT_ADDR: '0x39C4a92Dc506300c3Ea4c67ca4CA611102ee6F2A',
         EXCHANGE_OWNER_ADDR: '0xBc841B0dE0b93205e912CFBBd1D0c160A1ec6F00',
-        SAVER_EXCHANGE_ADDR: '0x25dd3F51e0C3c3Ff164DDC02A8E4D65Bb9cBB12D',
-        StrategyProxy: '0x0822902D30CC9c77404e6eB140dC1E98aF5b559A',
-        SubProxy: '0xd18d4756bbf848674cc35f1a0B86afEF20787382',
+        WRAPPER_EXCHANGE_REGISTRY: '0x653893375dD1D942D2C429caB51641F2bf14d426',
+        SubProxy: '0x88B8cEb76b88Ee0Fb7160E6e2Ad86055a32D72d4',
         UNISWAP_WRAPPER: '0x6cb48F0525997c2C1594c89e0Ca74716C99E3d54',
-        UNISWAP_V3_WRAPPER: '0xA250D449e8246B0be1ecF66E21bB98678448DEF5',
+        UNISWAP_V3_WRAPPER: '0xfd077F7990AeE7A0F59b1aD98c6dBeB9aBFf0D7a',
         UNIV3_WRAPPER: '0xA250D449e8246B0be1ecF66E21bB98678448DEF5',
         FEED_REGISTRY: '0x47Fb2585D2C56Fe188D0E6ec628a38b74fCeeeDf',
         COMET_USDC_ADDR: '0xc3d688B66703497DAA19211EEdff47f25384cdc3',
         COMET_USDC_REWARDS_ADDR: '0x1B0e765F6224C21223AeA2af16c1C46E38885a40',
+        COMET_ETH_ADDR: '0xA17581A9E3356d9A858b789D68B4d866e593aE94',
         COMP_ADDR: '0xc00e94Cb662C3520282E6f5717214004A7f26888',
         CHICKEN_BONDS_VIEW: '0x809a93fd4a0d7d7906Ef6176f0b5518b418Da08f',
         AAVE_MARKET: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e',
-        AAVE_V3_VIEW: '0x9ECB0645b357fDD7B92789B91595160862Bd45d0',
+        SPARK_MARKET: '0x02C3eA4e34C0cBd694D2adFa2c690EECbC1793eE',
+        AAVE_V3_VIEW: '0xf4B715BB788cC4071061bd67dC8B56681460A2fF',
         ZRX_ALLOWLIST_ADDR: '0x4BA1f38427b33B8ab7Bb0490200dAE1F1C36823F',
         ZRX_ALLOWLIST_OWNER: '0xBc841B0dE0b93205e912CFBBd1D0c160A1ec6F00',
-        AAVE_SUB_PROXY: '',
+        AAVE_SUB_PROXY: '0xb9F73625AA64D46A9b2f0331712e9bEE19e4C3f7',
+        CURVE_USD_WRAPPER: '0x3788B4Db5e99fF555e22a08241EB3cFc3a0ac149',
+        ADMIN_VAULT: '0xCCf3d848e08b94478Ed8f46fFead3008faF581fD',
+        ADMIN_ACC: '0x25eFA336886C74eA8E282ac466BdCd0199f85BB9',
+        DFS_REG_CONTROLLER: '0x6F6DaE1bCB60F67B2Cb939dBE565e8fD03F6F002',
         AVG_GAS_PRICE: 100,
-
+        AAVE_V3_POOL_DATA_PROVIDER: '0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3',
+        CURVE_WRAPPER_V3: '0xdE73496DD6349829C6649aCaDe31FB1371528AC5',
+        COMET_USDC_NATIVE_ADDR: '0xc3d688B66703497DAA19211EEdff47f25384cdc3',
+        EXCHANGE_AGGREGATOR_REGISTRY_ADDR: '0x7b67D9D7993A258C4b2C31CDD9E6cbD5Fb674985',
+        STRATEGY_STORAGE_ADDR: '0xF52551F95ec4A2B4299DcC42fbbc576718Dbf933',
+        BUNDLE_STORAGE_ADDR: '0x223c6aDE533851Df03219f6E3D8B763Bd47f84cf',
+        ZEROX_WRAPPER: '0x11e048f19844B7bAa6D9eA4a20eD4fACF7b757b2',
+        STRATEGY_EXECUTOR_ADDR: '0xFaa763790b26E7ea354373072baB02e680Eeb07F',
+        REFILL_CALLER: '0x33fDb79aFB4456B604f376A45A546e7ae700e880',
+        MORPHO_BLUE_VIEW: '0x10B621823D4f3E85fBDF759e252598e4e097C1fd',
     },
     optimism: {
         PROXY_REGISTRY: '0x283Cc5C26e53D66ed2Ea252D986F094B37E6e895',
@@ -55,21 +77,34 @@ const addrs = {
         OWNER_ACC: '0xC9a956923bfb5F141F1cd4467126b3ae91E5CC33',
         WETH_ADDRESS: '0x4200000000000000000000000000000000000006',
         DAI_ADDRESS: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
-        USDC_ADDR: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
+        USDC_ADDR: '0x0b2c639c533813f4aa9d7837caf62653d097ff85',
         EXCHANGE_OWNER_ADDR: '0xc9a956923bfb5f141f1cd4467126b3ae91e5cc33',
-        SAVER_EXCHANGE_ADDR: '0xFfE2F824f0a1Ca917885CB4f848f3aEf4a32AaB9',
+        WRAPPER_EXCHANGE_REGISTRY: '0x82b039Ca3c16E971132603f960a6E98582d8F021',
         PROXY_AUTH_ADDR: '0xD6ae16A1aF3002D75Cc848f68060dE74Eccc6043',
         AAVE_MARKET: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
-        StrategyProxy: '0xEe0C404FD30E289c305E760b3AE1d1Ae6503350f',
-        SubProxy: '0x163c08d3F6d916AD6Af55b37728D547e968103F8',
-        UNISWAP_V3_WRAPPER: '0xc6F57b45c20aE92174b8B7F86Bb51A1c8e4AD357',
-        AAVE_V3_VIEW: '0x5aD16e393615bfeF64e15210C370dd4b8f2753Cb',
+        SubProxy: '0xFF9f0B8d0a4270f98C52842d163fd34728109692',
+        UNISWAP_V3_WRAPPER: '0xF723B39fe2Aa9102dE45Bc8ECd3417805aAC79Aa',
+        AAVE_V3_VIEW: '0xC20fA40Dd4f0D3f7431Eb4B6bc0614F36932F6Dc',
         AAVE_SUB_PROXY: '0x9E8aE909Af8A391b58f45819f0d36e4256991D19',
         AVG_GAS_PRICE: 0.001,
         TOKEN_GROUP_REGISTRY: '0x566b2a957D8FCE39D2744059d558F27aF52a70c0',
         ETH_ADDR: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
         ZRX_ALLOWLIST_ADDR: '0x52F6ae5aE5a8a6316c970d3a02C50b74c1a50bB8',
         ZRX_ALLOWLIST_OWNER: '0xc9a956923bfb5f141f1cd4467126b3ae91e5cc33',
+        ADMIN_VAULT: '0x136b1bEAfff362530F98f10E3D8C38f3a3F3d38C',
+        ADMIN_ACC: '0x98118fD1Da4b3369AEe87778168e97044980632F',
+        DFS_REG_CONTROLLER: '0x493C0dE902E6916128A223F66F37d3b6ee8fA408',
+        AAVE_V3_POOL_DATA_PROVIDER: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654',
+        EXCHANGE_AGGREGATOR_REGISTRY_ADDR: '0x79586d55DECB755B9Bb436B2287eFf93025E549D',
+        STRATEGY_STORAGE_ADDR: '0xDdDE69c3Fd246D9D62f9712c814b333728f113A4',
+        BUNDLE_STORAGE_ADDR: '0xc98C5312829006b2D4bBd47162d49B1aa6C275Ab',
+        COMET_USDC_ADDR: '0x2e44e174f7D53F0212823acC11C01A11d58c5bCB',
+        COMET_USDC_REWARDS_ADDR: '0x443EA0340cb75a160F31A440722dec7b5bc3C2E9',
+        TX_SAVER_FEE_RECEIVER: '0x0eD7f3223266Ca1694F85C23aBe06E614Af3A479',
+        ZEROX_WRAPPER: '0x031D6d3C95dD2188D1A1A57e8DcD8051f3B938ca',
+        STRATEGY_EXECUTOR_ADDR: '0x2f54a62b18483f395779cCD81A598133aBb7775d',
+        FEE_RECIPIENT_ADDR: '0x5b12C2B979CB3aB89DD4813837873bC4Dd1930D0',
+        REFILL_CALLER: '0xaFdFC3814921d49AA412d6a22e3F44Cc555dDcC8',
     },
     arbitrum: {
         PROXY_REGISTRY: '0x283Cc5C26e53D66ed2Ea252D986F094B37E6e895',
@@ -78,28 +113,72 @@ const addrs = {
         WETH_ADDRESS: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
         DAI_ADDRESS: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
         USDC_ADDR: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
+        USDC_NATIVE_ADDR: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
         EXCHANGE_OWNER_ADDR: '0x926516e60521556f4ab5e7bf16a4d41a8539c7d1',
-        SAVER_EXCHANGE_ADDR: '0xaB1E4b72BC2f3890F052df111EE626c1c7229F26',
+        WRAPPER_EXCHANGE_REGISTRY: '0x4a0c7BDF7F58AA04852Da07CDb3d367521f81446',
         FEE_RECEIVER: '0xe000e3c9428D539566259cCd89ed5fb85e655A01',
+        TX_SAVER_FEE_RECEIVER: '0x0eD7f3223266Ca1694F85C23aBe06E614Af3A479',
+        FEE_RECIPIENT_ADDR: '0xe000e3c9428D539566259cCd89ed5fb85e655A01',
         TOKEN_GROUP_REGISTRY: '0xb03fe103f54841821C080C124312059c9A3a7B5c',
         PROXY_AUTH_ADDR: '0xF3A8479538319756e100C386b3E60BF783680d8f',
         AAVE_MARKET: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
-        SubProxy: '0x275A8f98dBA07Ad6380D3ea3F36B665DD6E02F25',
-        StrategyProxy: '0x8F62B8Cd1189dB92ba4CBd4dBE64D03C54fD079B',
-        AAVE_V3_VIEW: '0x710f01037018Daad969B8FeFe69b4823Ef788bc6',
-        UNISWAP_V3_WRAPPER: '0x48ef488054b5c570cf3a2ac0a0697b0b0d34c431',
+        SubProxy: '0x2edB8eb14e29F3CF0bd50958b4664C9EB1583Ec9',
+        AAVE_V3_VIEW: '0xA74a85407D5A940542915458616aC3cf3f404E3b',
+        UNISWAP_V3_WRAPPER: '0x37236458C59F4dCF17b96Aa67FC07Bbf5578d873',
         ETH_ADDR: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
         AAVE_SUB_PROXY: '0x29a172f04CF9C6a79EdF4dD2744F2d260b8b8FE4',
         UNISWAP_WRAPPER: '0x48ef488054b5c570cf3a2ac0a0697b0b0d34c431',
         ZRX_ALLOWLIST_ADDR: '0x5eD8e74b1caE57B0c68B3278B88589991FBa0750',
         ZRX_ALLOWLIST_OWNER: '0x926516e60521556f4ab5e7bf16a4d41a8539c7d1',
+        COMET_USDC_ADDR: '0xA5EDBDD9646f8dFF606d7448e414884C7d905dCA',
+        COMET_USDC_NATIVE_ADDR: '0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf',
+        COMET_USDC_REWARDS_ADDR: '0x88730d254A2f7e6AC8388c3198aFd694bA9f7fae',
+        COMP_ADDR: '0x354A6dA3fcde098F8389cad84b0182725c6C91dE',
+        ADMIN_VAULT: '0xd47D8D97cAd12A866900eEc6Cde1962529F25351',
+        ADMIN_ACC: '0x6AFEA85cFAB61e3a55Ad2e4537252Ec05796BEfa',
+        DFS_REG_CONTROLLER: '0x7702fa16b0cED7e44fF7Baeed04bF165f58eE51D',
+        AAVE_V3_POOL_DATA_PROVIDER: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654',
+        EXCHANGE_AGGREGATOR_REGISTRY_ADDR: '0xcc0Ae28CC4ae2944B61d3b205F47F5f3aE5Ca204',
         AVG_GAS_PRICE: 0.5,
+        STRATEGY_STORAGE_ADDR: '0x6aeA695fcd0655650323e9dc5f80Ac0b15A91Da2',
+        BUNDLE_STORAGE_ADDR: '0x8332F2a50A9a6C85a476e1ea33031681291cB694',
+        ZEROX_WRAPPER: '0x94a58e456F1De766b13e45104D79201A218c1607',
+        STRATEGY_EXECUTOR_ADDR: '0xa4F087267828C3Ca8ac18b6fE7f456aB20781AA6',
+        REFILL_CALLER: '0xcbA094ae1B2B363886CC7f428206dB1b116834A2',
     },
-    kovan: {
-        PROXY_REGISTRY: '0xF9722E05B68E5ad5D6E1674C4d6BfE11791a1E33',
-    },
-    kovanOptimism: {
-        PROXY_REGISTRY: '0x1fA11C699629E43005fd64f4DA36d9Eb30333ef9',
+    base: {
+        PROXY_REGISTRY: '0x425fA97285965E01Cc5F951B62A51F6CDEA5cc0d',
+        REGISTRY_ADDR: '0x347FB634271F666353F23A3362f3935D96F97476',
+        OWNER_ACC: '0xBaBe2409dBD359453E5292d684fF324A638801bF',
+        WETH_ADDRESS: '0x4200000000000000000000000000000000000006',
+        DAI_ADDRESS: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
+        USDC_ADDR: '0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA',
+        EXCHANGE_OWNER_ADDR: '0xC4D4b4F2Df76f9952E6e0Dc79861582A5b7269c3',
+        WRAPPER_EXCHANGE_REGISTRY: '0x586328A3F24E2c1A41D9A3a5B2Ed123A156dB82e',
+        PROXY_AUTH_ADDR: '0xD34BBE7398F7F08952b033bbaF2D2xC84231dCEdc',
+        AAVE_MARKET: '0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D',
+        SubProxy: '0xDC9441c4085B9B302506d64330e178E3C4890C87',
+        UNISWAP_V3_WRAPPER: '0x914A50910fF1404Fe62D04846a559c49C55219c3',
+        AAVE_V3_VIEW: '0x125b8b832BD7F2EBD77Eef148A6319AdE751C44b',
+        AAVE_SUB_PROXY: '',
+        AVG_GAS_PRICE: 0.001,
+        TOKEN_GROUP_REGISTRY: '0xa898078f369A78CE6b8023715e8f6d2Ad7d2719f',
+        ETH_ADDR: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        ZRX_ALLOWLIST_ADDR: '0x169D6E128238ebabF86032Ae9da65938eaD7F69e',
+        ZRX_ALLOWLIST_OWNER: '',
+        ADMIN_VAULT: '0xD8E67968d8a0df4beCf2D50daE1e34d4d80C701C',
+        ADMIN_ACC: '0xF8EC1967A719027A95883a89579e7A77699899e4',
+        DFS_REG_CONTROLLER: '0x50bCFC115283dF48Ab6382551B9B93b08E197747',
+        AAVE_V3_POOL_DATA_PROVIDER: '0x2d8A3C5677189723C4cB8873CfC9C8976FDF38Ac',
+        EXCHANGE_AGGREGATOR_REGISTRY_ADDR: '0xB297cB5B1380cDD68A238cA38e8d54C809f3De32',
+        STRATEGY_STORAGE_ADDR: '0x3Ca96CebC7779Ee86685c67c999d0f03158Ee9cA',
+        BUNDLE_STORAGE_ADDR: '0x6AB90ff536f0E2a880DbCdef1bB665C2acC0eDdC',
+        TX_SAVER_FEE_RECEIVER: '0x0eD7f3223266Ca1694F85C23aBe06E614Af3A479',
+        ZEROX_WRAPPER: '0xdAB5cC8CDCBA602E7ACfab262A4B09fDEEC20b51',
+        STRATEGY_EXECUTOR_ADDR: '0x0d099E38f6aF8778c5053349c350Aad906B1432F',
+        FEE_RECIPIENT_ADDR: '0xEDFc68e2874B0AFc0963e18AE4D68522aEc7f97D',
+        REFILL_CALLER: '0xBefc466abe547B1785f382883833330a47C573f7',
+        MORPHO_BLUE_VIEW: '0x53c0E962bd0AC53928ca04703238b2ec2894195B',
     },
 };
 
@@ -110,6 +189,8 @@ const config = require('../hardhat.config');
 
 const nullAddress = '0x0000000000000000000000000000000000000000';
 const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+const EETH_ADDR = '0x35fA164735182de50811E8e2E824cFb9B6118ac2';
+const ETHER_FI_LIQUIDITY_POOL = '0x308861A430be4cce5502d0A12724771Fc6DaF216';
 const KYBER_WRAPPER = '0x71C8dc1d6315a48850E88530d18d3a97505d2065';
 const UNISWAP_WRAPPER = '0x6cb48F0525997c2C1594c89e0Ca74716C99E3d54';
 const OASIS_WRAPPER = '0x2aD7D86C56b7a09742213e1e649C727cB4991A54';
@@ -126,11 +207,14 @@ const AAVE_MARKET = '0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5';
 const YEARN_REGISTRY_ADDRESS = '0x50c1a2eA0a861A967D9d0FFE2AE4012c2E053804';
 const STETH_ADDRESS = '0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84';
 const WSTETH_ADDRESS = '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0';
+const A_WSETH_TOKEN_ADDR = '0x0B925eD163218f6662a35e0f0371Ac234f9E9371';
 const UNIV2_ROUTER_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
 const FEED_REGISTRY_ADDRESS = '0x47Fb2585D2C56Fe188D0E6ec628a38b74fCeeeDf';
 const USD_DENOMINATION = '0x0000000000000000000000000000000000000348';
 const BLUSD_ADDR = '0xB9D7DdDca9a4AC480991865EfEf82E01273F79C3';
 const BOND_NFT_ADDR = '0xa8384862219188a8f03c144953Cf21fc124029Ee';
+
+const AAVE_V2_MARKET_ADDR = '0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5';
 
 // optimism aave V3
 const AAVE_MARKET_OPTIMISM = '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb';
@@ -146,6 +230,7 @@ const UNI_ADDR = '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984';
 const LINK_ADDR = '0x514910771af9ca656af840dff83e8264ecf986ca';
 const WBTC_ADDR = '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599';
 const LUSD_ADDR = '0x5f98805A4E8be255a32880FDeC7F6728C6568bA0';
+const BOLD_ADDR = '0xb01dd87b29d187f3e3a4bf6cdaebfb97f3d9ab98';
 
 const USDT_ADDR = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 const BUSD_ADDR = '0x4fabb145d64652a948d72533023f6e7a623c7c53';
@@ -164,20 +249,38 @@ const MAX_UINT128 = '340282366920938463463374607431768211455';
 
 const DFS_REG_CONTROLLER = '0xF8f8B3C98Cf2E63Df3041b73f80F362a4cf3A576';
 
+const BALANCER_VAULT_ADDR = '0xBA12222222228d8Ba445958a75a0704d566BF2C8';
+
 const dydxTokens = ['WETH', 'USDC', 'DAI'];
 
 let network = hre.network.config.name;
+
+const setNetwork = (networkName) => {
+    network = networkName;
+};
+
+const getNetwork = () => network;
+const isNetworkFork = () => hre.network.name === 'fork';
 
 const chainIds = {
     mainnet: 1,
     optimism: 10,
     arbitrum: 42161,
+    base: 8453,
 };
 
 const AAVE_FL_FEE = 0.09; // TODO: can we fetch this dynamically
 const AAVE_V3_FL_FEE = 0.05;
 const MIN_VAULT_DAI_AMOUNT = '45010'; // TODO: can we fetch this dynamically
 const MIN_VAULT_RAI_AMOUNT = '3000'; // TODO: can we fetch this dynamically
+
+const getSparkFLFee = async () => {
+    console.log(getNetwork(), addrs[getNetwork()].SPARK_MARKET);
+    return hre.ethers.getContractAt('IPoolAddressesProvider', addrs[getNetwork()].SPARK_MARKET)
+        .then((addressProvider) => addressProvider.getPool())
+        .then((poolAddr) => hre.ethers.getContractAt('IPoolV3', poolAddr))
+        .then((pool) => pool.FLASHLOAN_PREMIUM_TOTAL());
+};
 
 const AVG_GAS_PRICE = 100; // gwei
 
@@ -213,6 +316,8 @@ const standardAmounts = {
 };
 
 const coinGeckoHelper = {
+    GNO: 'gnosis',
+    rETH: 'rocket-pool-eth',
     STETH: 'staked-ether',
     CRV: 'curve-dao-token',
     ETH: 'ethereum',
@@ -254,19 +359,26 @@ const coinGeckoHelper = {
     SUSHI: 'sushi',
     bLUSD: 'boosted-lusd',
     wstETH: 'wrapped-steth',
+    stETH: 'steth',
+    GMX: 'gmx',
+    ARB: 'arbitrum',
+    frxETH: 'frax-ether',
+    sfrxETH: 'staked-frax-ether',
+    tBTC: 'tbtc',
+    crvUSD: 'crvusd',
+    sUSDe: 'ethena-staked-usde',
+    OP: 'optimism',
+    cbETH: 'cb-eth',
+    FRAX: 'frax',
 };
 
 const BN2Float = hre.ethers.utils.formatUnits;
 
 const Float2BN = hre.ethers.utils.parseUnits;
 
-const setNetwork = (networkName) => {
-    network = networkName;
-};
-
-const getNetwork = () => network;
-
 const getOwnerAddr = () => addrs[network].OWNER_ACC;
+
+const getAdminAddr = () => addrs[network].ADMIN_ACC;
 
 async function findBalancesSlot(tokenAddress) {
     const slotObj = storageSlots[tokenAddress];
@@ -282,6 +394,15 @@ async function findBalancesSlot(tokenAddress) {
         'IERC20',
         tokenAddress,
     );
+    let setStorageMethod;
+    if (hre.network.config.isAnvil) {
+        setStorageMethod = 'anvil_setStorageAt';
+    } else if (hre.network.config.type === 'tenderly') {
+        setStorageMethod = 'tenderly_setStorageAt';
+    } else {
+        setStorageMethod = 'hardhat_setStorageAt';
+    }
+
     for (let i = 0; i < 100; i++) {
         {
             let probedSlot = hre.ethers.utils.keccak256(
@@ -296,7 +417,7 @@ async function findBalancesSlot(tokenAddress) {
             // make sure the probe will change the slot value
             const probe = prev === probeA ? probeB : probeA;
 
-            await hre.ethers.provider.send('hardhat_setStorageAt', [
+            await hre.ethers.provider.send(setStorageMethod, [
                 tokenAddress,
                 probedSlot,
                 probe,
@@ -304,7 +425,7 @@ async function findBalancesSlot(tokenAddress) {
 
             const balance = await token.balanceOf(account);
             // reset to previous value
-            await hre.ethers.provider.send('hardhat_setStorageAt', [
+            await hre.ethers.provider.send(setStorageMethod, [
                 tokenAddress,
                 probedSlot,
                 prev,
@@ -330,7 +451,7 @@ async function findBalancesSlot(tokenAddress) {
             // make sure the probe will change the slot value
             const probe = prev === probeA ? probeB : probeA;
 
-            await hre.ethers.provider.send('hardhat_setStorageAt', [
+            await hre.ethers.provider.send(setStorageMethod, [
                 tokenAddress,
                 probedSlot,
                 probe,
@@ -338,7 +459,7 @@ async function findBalancesSlot(tokenAddress) {
 
             const balance = await token.balanceOf(account);
             // reset to previous value
-            await hre.ethers.provider.send('hardhat_setStorageAt', [
+            await hre.ethers.provider.send(setStorageMethod, [
                 tokenAddress,
                 probedSlot,
                 prev,
@@ -373,7 +494,14 @@ const timeTravel = async (timeIncrease) => {
 };
 
 const setStorageAt = async (address, index, value) => {
-    await hre.ethers.provider.send('hardhat_setStorageAt', [address, index, value]);
+    let prefix = 'hardhat';
+
+    if (hre.network.config.type === 'tenderly') {
+        prefix = 'tenderly';
+    }
+    console.log(`${prefix}_setStorageAt`);
+
+    await hre.ethers.provider.send(`${prefix}_setStorageAt`, [address, index, value]);
     await hre.ethers.provider.send('evm_mine', []); // Just mines to the next block
 };
 
@@ -426,7 +554,34 @@ const getLocalTokenPrice = (tokenSymbol) => {
     }
     return 0;
 };
+const getTokenHelperContract = async () => {
+    const contractName = chainIds[getNetwork()] === 1 ? 'TokenPriceHelper' : 'TokenPriceHelperL2';
+    console.log(`Deploying ${contractName}`);
+    const tokenPriceHelperFactory = await hre.ethers.getContractFactory(contractName);
+    const tokenHelper = await tokenPriceHelperFactory.deploy();
+    await tokenHelper.deployed();
+    return tokenHelper;
+};
+const fetchAmountInUSDPrice = async (tokenSymbol, amountUSD) => {
+    const { decimals, address } = getAssetInfo(tokenSymbol, chainIds[getNetwork()]);
+    const tokenHelper = await getTokenHelperContract();
 
+    const tokenPriceInUSD = await tokenHelper.getPriceInUSD(address);
+    const tokenPriceInUSDFormatted = tokenPriceInUSD / 10 ** 8;
+
+    const numOfTokens = (amountUSD / tokenPriceInUSDFormatted).toFixed(decimals);
+
+    return hre.ethers.utils.parseUnits(numOfTokens, decimals);
+};
+
+const fetchTokenPriceInUSD = async (tokenSymbol) => {
+    const { address } = getAssetInfo(tokenSymbol, chainIds[getNetwork()]);
+    const tokenHelper = await getTokenHelperContract();
+    const tokenPriceInUSD = await tokenHelper.getPriceInUSD(address);
+    return tokenPriceInUSD;
+};
+
+// TODO: remove once we replace it with fetchAmountInUSDPrice
 const fetchAmountinUSDPrice = (tokenSymbol, amountUSD) => {
     const { decimals } = getAssetInfo(tokenSymbol);
     const tokenPrice = getLocalTokenPrice(tokenSymbol);
@@ -437,14 +592,18 @@ const fetchStandardAmounts = async () => standardAmounts;
 
 const impersonateAccount = async (account) => {
     await hre.network.provider.request({
-        method: 'hardhat_impersonateAccount',
+        method: hre.network.config.isAnvil
+            ? 'anvil_impersonateAccount'
+            : 'hardhat_impersonateAccount',
         params: [account],
     });
 };
 
 const stopImpersonatingAccount = async (account) => {
     await hre.network.provider.request({
-        method: 'hardhat_stopImpersonatingAccount',
+        method: hre.network.config.isAnvil
+            ? 'anvil_stopImpersonatingAccount'
+            : 'hardhat_stopImpersonatingAccount',
         params: [account],
     });
 };
@@ -460,9 +619,7 @@ const getAddrFromRegistry = async (name, regAddr = addrs[network].REGISTRY_ADDR)
     const registry = registryInstance.attach(regAddr);
 
     // TODO: Write in registry later
-    // if (name === 'StrategyProxy') {
-    //     return addrs[network].StrategyProxy;
-    // } if (name === 'SubProxy') {
+    // if (name === 'SubProxy') {
     //     return addrs[network].SubProxy;
     // }
     const addr = await registry.getAddr(
@@ -487,19 +644,29 @@ const getProxyWithSigner = async (signer, addr) => {
     return dsProxy;
 };
 
-const getProxy = async (acc) => {
-    const proxyRegistry = await
-    hre.ethers.getContractAt('IProxyRegistry', addrs[network].PROXY_REGISTRY);
-    let proxyAddr = await proxyRegistry.proxies(acc);
+const getProxy = async (acc, isSafe = false) => {
+    if (isSafe === false) {
+        const proxyRegistry = await
+        hre.ethers.getContractAt('IProxyRegistry', addrs[network].PROXY_REGISTRY);
+        let proxyAddr = await proxyRegistry.proxies(acc);
 
-    if (proxyAddr === nullAddress) {
-        await proxyRegistry.build(acc);
-        proxyAddr = await proxyRegistry.proxies(acc);
+        if (proxyAddr === nullAddress) {
+            await proxyRegistry.build(acc);
+            proxyAddr = await proxyRegistry.proxies(acc);
+        }
+
+        const dsProxy = await hre.ethers.getContractAt('IDSProxy', proxyAddr);
+
+        return dsProxy;
+    } else {
+        // create safe
+        const safeAddr = await createSafe(acc);
+        const safe = await hre.ethers.getContractAt('ISafe', safeAddr);
+
+        console.log(`Safe created ${safeAddr}`);
+
+        return safe;
     }
-
-    const dsProxy = await hre.ethers.getContractAt('IDSProxy', proxyAddr);
-
-    return dsProxy;
 };
 
 const sendEther = async (signer, toAddress, amount) => {
@@ -513,13 +680,20 @@ const sendEther = async (signer, toAddress, amount) => {
 // eslint-disable-next-line max-len
 const redeploy = async (name, regAddr = addrs[getNetwork()].REGISTRY_ADDR, saveOnTenderly = config.saveOnTenderly, isFork = false, ...args) => {
     if (!isFork) {
-        await hre.network.provider.send('hardhat_setBalance', [
+        const setBalanceMethod = hre.network.config.isAnvil ? 'anvil_setBalance' : 'hardhat_setBalance';
+        console.log(setBalanceMethod);
+        await hre.network.provider.send(setBalanceMethod, [
             getOwnerAddr(),
             '0xC9F2C9CD04674EDEA40000000',
         ]);
-        await hre.network.provider.send('hardhat_setNextBlockBaseFeePerGas', [
+
+        const setNextBlockBaseFeeMethod = hre.network.config.isAnvil
+            ? 'anvil_setNextBlockBaseFeePerGas'
+            : 'hardhat_setNextBlockBaseFeePerGas';
+        await hre.network.provider.send(setNextBlockBaseFeeMethod, [
             '0x1', // 1 wei
         ]);
+
         if (regAddr === addrs[getNetwork()].REGISTRY_ADDR) {
             await impersonateAccount(getOwnerAddr());
         }
@@ -533,12 +707,18 @@ const redeploy = async (name, regAddr = addrs[getNetwork()].REGISTRY_ADDR, saveO
     let registry = await registryInstance.attach(regAddr);
 
     registry = registry.connect(signer);
-
-    const c = await deployAsOwner(name, undefined, ...args);
-
+    // if (isFork) {
+    //     // if script is consistenly failing due to tenderly delete this
+    //     // deployer = await hre.ethers.provider.getSigner(getOwnerAddr());
+    // }
+    const c = await deployAsOwner(name, signer, ...args);
     if (name === 'StrategyExecutor' || name === 'StrategyExecutorL2') {
         // eslint-disable-next-line no-param-reassign
         name = 'StrategyExecutorID';
+    }
+    if (name === 'KyberInputScalingHelperL2' && getNetwork() !== 'mainnet') {
+        // eslint-disable-next-line no-param-reassign
+        name = 'KyberInputScalingHelper';
     }
 
     // if (name === 'FLAaveV3') {
@@ -586,6 +766,28 @@ const redeploy = async (name, regAddr = addrs[getNetwork()].REGISTRY_ADDR, saveO
     return c;
 };
 
+const approveContractInRegistry = async (name, regAddr = addrs[getNetwork()].REGISTRY_ADDR) => {
+    const signer = await hre.ethers.provider.getSigner(getOwnerAddr());
+    const registryInstance = await hre.ethers.getContractFactory('contracts/core/DFSRegistry.sol:DFSRegistry', signer);
+    let registry = await registryInstance.attach(regAddr);
+
+    registry = registry.connect(signer);
+
+    const id = getNameId(name);
+
+    const entryData = await registry.entries(id);
+
+    if (entryData.inContractChange) {
+        if (parseInt(entryData.waitPeriod, 10) > 0) {
+            await timeTravel(parseInt(entryData.waitPeriod, 10) + 10);
+        }
+
+        await registry.approveContractChange(id, { gasLimit: 2000000 });
+    } else {
+        console.log(`Contract ${name} not in change`);
+    }
+};
+
 const getContractFromRegistry = async (
     name,
     regAddr = addrs[getNetwork()].REGISTRY_ADDR,
@@ -599,7 +801,8 @@ const getContractFromRegistry = async (
 };
 
 const setCode = async (addr, code) => {
-    await hre.network.provider.send('hardhat_setCode', [addr, code]);
+    const setCodeMethod = hre.network.config.isAnvil ? 'anvil_setCode' : 'hardhat_setCode';
+    await hre.network.provider.send(setCodeMethod, [addr, code]);
 };
 
 const setContractAt = async ({ name, address, args = [] }) => {
@@ -633,7 +836,6 @@ const redeployCore = async (isL2 = false) => {
     await setCode(addrs[network].PROXY_AUTH_ADDR, proxyAuthBytecode);
 
     await redeploy('SubProxy', addrs[network].REGISTRY_ADDR);
-    await redeploy('StrategyProxy', addrs[network].REGISTRY_ADDR);
 
     let strategyExecutorName = 'StrategyExecutor';
     if (isL2) strategyExecutorName = 'StrategyExecutorL2';
@@ -653,7 +855,6 @@ const approve = async (tokenAddr, to, signer) => {
     const tokenContract = await hre.ethers.getContractAt('IERC20', tokenAddr);
 
     const from = signer ? signer.address : tokenContract.signer.address;
-
     const allowance = await tokenContract.allowance(from, to);
 
     if (allowance.toString() === '0') {
@@ -710,7 +911,7 @@ const formatMockExchangeObj = async (
 ) => {
     if (!wrapper) {
         // eslint-disable-next-line no-param-reassign
-        wrapper = await getAddrFromRegistry('MockExchangeWrapper');
+        wrapper = await getContractFromRegistry('MockExchangeWrapper', addrs[network].REGISTRY_ADDR);
     }
 
     const rateDecimals = 18 + destTokenInfo.decimals - srcTokenInfo.decimals;
@@ -724,7 +925,7 @@ const formatMockExchangeObj = async (
 
     await setBalance(
         destTokenInfo.addresses[chainIds[network]],
-        wrapper,
+        wrapper.address,
         expectedOutput,
     );
 
@@ -736,7 +937,7 @@ const formatMockExchangeObj = async (
         0,
         0,
         nullAddress,
-        wrapper,
+        wrapper.address,
         hre.ethers.utils.defaultAbiCoder.encode(['uint256'], [rate]),
         [nullAddress, nullAddress, nullAddress, 0, 0, hre.ethers.utils.toUtf8Bytes('')],
     ];
@@ -785,34 +986,51 @@ const formatExchangeObj = (srcAddr, destAddr, amount, wrapper, destAmount = 0, u
     ];
 };
 
+// eslint-disable-next-line no-underscore-dangle
+let _curveObj;
+const curveApiInit = async () => {
+    if (!_curveObj) {
+        _curveObj = ((await curve).default);
+        await _curveObj.init('JsonRpc', { url: process.env.ETHEREUM_NODE }, { chaindId: '1' });
+        // Fetch factory pools
+        await _curveObj.factory.fetchPools(true);
+        await _curveObj.crvUSDFactory.fetchPools(true);
+        await _curveObj.EYWAFactory.fetchPools(true);
+        await _curveObj.cryptoFactory.fetchPools(true);
+        await _curveObj.tricryptoFactory.fetchPools(true);
+    }
+    return _curveObj;
+};
+
 const formatExchangeObjCurve = async (
     srcAddr,
     destAddr,
     amount,
     wrapper,
 ) => {
-    const { route: sdkRoute } = await curve.getBestRouteAndOutput(
+    const curveObj = await curveApiInit();
+
+    const { route: sdkRoute } = await curveObj.router.getBestRouteAndOutput(
         srcAddr,
         destAddr,
-        '1000', // this is fine
+        amount,
     );
-    const swapParams = sdkRoute.map((e) => [e.i, e.j, e.swapType]).concat(
-        [...Array(4 - sdkRoute.length).keys()].map(
-            () => [0, 0, 0],
-        ),
-    );
-    const route = [srcAddr].concat(
-        ...sdkRoute.map((e) => [e.poolAddress, e.outputCoinAddress]),
-        ...[...Array(8 - (sdkRoute.length) * 2).keys()].map(
-            () => [nullAddress],
-        ),
-    );
+    const args = curveObj.router.getArgs(sdkRoute);
 
     const exchangeData = hre.ethers.utils.defaultAbiCoder.encode(
-        ['address[9]', 'uint256[3][4]'],
-        [route, swapParams],
+        ['address[11]', 'uint256[5][5]', 'address[5]'],
+        // eslint-disable-next-line no-underscore-dangle
+        [args._route, args._swapParams, args._pools],
     );
-
+    if (exchangeData.toString().includes('5e74c9036fb86bd7ecdcb084a0673efc32ea31cb')) {
+        console.log('sETH used in curve route, may fail');
+    }
+    if (exchangeData.toString().includes('fe18be6b3bd88a2d2a7f928d00292e7a9963cfc6')) {
+        console.log('sBTC used in curve route, may fail');
+    }
+    if (exchangeData.toString().includes('57Ab1ec28D129707052df4dF418D58a2D46d5f51')) {
+        console.log('sUSD used in curve route, may fail');
+    }
     return [
         srcAddr,
         destAddr,
@@ -827,7 +1045,10 @@ const formatExchangeObjCurve = async (
     ];
 };
 
-const formatExchangeObjSdk = async (srcAddr, destAddr, amount, wrapper) => {
+// TODO[LiquityV2] remove bold 'boldSrc' and 'boldDest' once deployed. This is only used for temporary testing
+const formatExchangeObjSdk = async (
+    srcAddr, destAddr, amount, wrapper, boldSrc = false, boldDest = false,
+) => {
     console.log({ srcAddr, destAddr });
     const { AlphaRouter, SwapType } = await import('@uniswap/smart-order-router');
     const {
@@ -836,9 +1057,9 @@ const formatExchangeObjSdk = async (srcAddr, destAddr, amount, wrapper) => {
         TradeType,
         Percent,
     } = await import('@uniswap/sdk-core');
-
     const chainId = chainIds[network];
-    const srcTokenInfo = getAssetInfoByAddress(srcAddr, chainId);
+    const boldInfo = { decimals: 18, symbol: 'Bold', name: 'Bold Stablecoin' };
+    const srcTokenInfo = boldSrc ? boldInfo : getAssetInfoByAddress(srcAddr, chainId);
     const srcToken = new Token(
         chainId,
         srcAddr,
@@ -846,7 +1067,7 @@ const formatExchangeObjSdk = async (srcAddr, destAddr, amount, wrapper) => {
         srcTokenInfo.symbol,
         srcTokenInfo.name,
     );
-    const destTokenInfo = getAssetInfoByAddress(destAddr, chainId);
+    const destTokenInfo = boldDest ? boldInfo : getAssetInfoByAddress(destAddr, chainId);
     const destToken = new Token(
         chainId,
         destAddr,
@@ -916,19 +1137,23 @@ const getProxyAuth = async (proxyAddr, addrWithAuth) => {
     return hasPermission;
 };
 
-const setNewExchangeWrapper = async (acc, newAddr) => {
-    const exchangeOwnerAddr = addrs[network].EXCHANGE_OWNER_ADDR;
-    await sendEther(acc, exchangeOwnerAddr, '1');
-    await impersonateAccount(exchangeOwnerAddr);
+const setNewExchangeWrapper = async (acc, newAddr, isFork = false) => {
+    const ownerAddr = addrs[network].OWNER_ACC;
+    if (!isFork) {
+        await sendEther(acc, ownerAddr, '1');
+        await impersonateAccount(ownerAddr);
+    }
 
-    const signer = await hre.ethers.provider.getSigner(exchangeOwnerAddr);
+    const signer = await hre.ethers.provider.getSigner(ownerAddr);
 
-    const registryInstance = await hre.ethers.getContractFactory('SaverExchangeRegistry');
-    const registry = await registryInstance.attach(addrs[network].SAVER_EXCHANGE_ADDR);
+    const registryInstance = await hre.ethers.getContractFactory('WrapperExchangeRegistry');
+    const registry = await registryInstance.attach(addrs[network].WRAPPER_EXCHANGE_REGISTRY);
     const registryByOwner = registry.connect(signer);
 
     await registryByOwner.addWrapper(newAddr, { gasLimit: 300000 });
-    await stopImpersonatingAccount(exchangeOwnerAddr);
+    if (!isFork) {
+        await stopImpersonatingAccount(ownerAddr);
+    }
 };
 
 const depositToWeth = async (amount, signer) => {
@@ -969,20 +1194,23 @@ const formatExchangeObjForOffchain = (
     [wrapper, exchangeAddr, allowanceTarget, price, protocolFee, callData],
 ];
 
-const addToZRXAllowlist = async (acc, newAddr) => {
-    const exchangeOwnerAddr = addrs[network].ZRX_ALLOWLIST_OWNER;
-    await sendEther(acc, exchangeOwnerAddr, '1');
-    await impersonateAccount(exchangeOwnerAddr);
+const addToExchangeAggregatorRegistry = async (acc, newAddr, isFork = false) => {
+    const ownerAddr = addrs[network].OWNER_ACC;
+    if (!isFork) {
+        await sendEther(acc, ownerAddr, '1');
+        await impersonateAccount(ownerAddr);
+    }
+    const signer = hre.ethers.provider.getSigner(ownerAddr);
 
-    const signer = await hre.ethers.provider.getSigner(exchangeOwnerAddr);
+    const registry = await hre.ethers.getContractAt(
+        'ExchangeAggregatorRegistry', addrs[network].EXCHANGE_AGGREGATOR_REGISTRY_ADDR, signer,
+    );
 
-    const registryInstance = await hre.ethers.getContractFactory('ZrxAllowlist');
-    const zrxAllowlistAddr = addrs[network].ZRX_ALLOWLIST_ADDR;
-    const registry = await registryInstance.attach(zrxAllowlistAddr);
-    const registryByOwner = await registry.connect(signer);
+    await registry.setExchangeTargetAddr(newAddr, true);
 
-    await registryByOwner.setAllowlistAddr(newAddr, true);
-    await stopImpersonatingAccount(exchangeOwnerAddr);
+    if (!isFork) {
+        await stopImpersonatingAccount(ownerAddr);
+    }
 };
 
 const getGasUsed = async (receipt) => {
@@ -1111,15 +1339,21 @@ const openStrategyAndBundleStorage = async (isFork) => {
 
 async function setForkForTesting() {
     const senderAcc = (await hre.ethers.getSigners())[0];
-    await hre.network.provider.send('hardhat_setBalance', [
+    const setBalanceMethod = hre.network.config.isAnvil ? 'anvil_setBalance' : 'hardhat_setBalance';
+    await hre.network.provider.send(setBalanceMethod, [
         senderAcc.address,
         '0xC9F2C9CD04674EDEA40000000',
     ]);
-    await hre.network.provider.send('hardhat_setBalance', [
+    await hre.network.provider.send(setBalanceMethod, [
         OWNER_ACC,
         '0xC9F2C9CD04674EDEA40000000',
     ]);
-    await hre.network.provider.send('hardhat_setNextBlockBaseFeePerGas', [
+
+    const setNextBlockBaseFeeMethod = hre.network.config.isAnvil
+        ? 'anvil_setNextBlockBaseFeePerGas'
+        : 'hardhat_setNextBlockBaseFeePerGas';
+
+    await hre.network.provider.send(setNextBlockBaseFeeMethod, [
         '0x1', // 1 wei
     ]);
 }
@@ -1132,9 +1366,11 @@ const resetForkToBlock = async (block) => {
         rpcUrl = process.env[`${network.toUpperCase()}_NODE`];
     }
 
+    const resetMethod = hre.network.config.isAnvil ? 'anvil_reset' : 'hardhat_reset';
+
     if (block) {
         await hre.network.provider.request({
-            method: 'hardhat_reset',
+            method: resetMethod,
             params: [
                 {
                     forking: {
@@ -1146,7 +1382,7 @@ const resetForkToBlock = async (block) => {
         });
     } else {
         await hre.network.provider.request({
-            method: 'hardhat_reset',
+            method: resetMethod,
             params: [
                 {
                     forking: {
@@ -1194,8 +1430,66 @@ const filterEthersObject = (obj) => {
     return keys.map((key) => filterEthersObject(obj[key]));
 };
 
+const isProxySafe = (proxy) => proxy.functions.nonce !== undefined;
+
+// executes tx through safe or dsproxy depending the type
+const executeTxFromProxy = async (proxy, targetAddr, callData, ethValue = 0) => {
+    let receipt;
+    if (isProxySafe(proxy)) {
+        console.log('proxy signer address');
+        receipt = await executeSafeTx(
+            proxy.signer.address,
+            proxy,
+            targetAddr,
+            callData,
+            1,
+            ethValue,
+        );
+    } else {
+        receipt = await proxy['execute(address,bytes)'](targetAddr, callData, {
+            gasLimit: 10000000,
+            value: ethValue,
+        });
+    }
+
+    return receipt;
+};
+
+const WALLETS = ['DS_PROXY', 'SAFE'];
+const isWalletNameDsProxy = (w) => w === 'DS_PROXY';
+
+const generateIds = () => {
+    const idsMap = {};
+    const files = getAllFiles('./contracts');
+
+    // add extra non-contract name ids
+    files.push('/StrategyExecutorID.sol');
+    files.push('/FLActionL2.sol');
+    files.push('/MStableDeposit.sol');
+    files.push('/MStableWithdraw.sol');
+    files.push('/RariDeposit.sol');
+    files.push('/RariWithdraw.sol');
+    files.push('/FLMorphoBlue.sol');
+    files.push('/FLAaveV3.sol');
+    files.push('/FLAaveV3WithFee.sol');
+    files.push('/FLAaveV2.sol');
+    files.push('/FLMaker.sol');
+    files.push('/FLBalancer.sol');
+
+    files.forEach((filePath) => {
+        const fileName = filePath.split('/').pop().split('.')[0];
+        const id = getNameId(fileName);
+
+        idsMap[id] = { fileName, filePath };
+        // add id if it's contract name + New at the end
+        idsMap[`${id}New`] = { fileName: `${fileName}New`, filePath };
+    });
+
+    return idsMap;
+};
+
 module.exports = {
-    addToZRXAllowlist,
+    addToExchangeAggregatorRegistry,
     getAddrFromRegistry,
     getProxy,
     getProxyWithSigner,
@@ -1226,6 +1520,7 @@ module.exports = {
     openStrategyAndBundleStorage,
     redeployCore,
     getOwnerAddr,
+    getAdminAddr,
     getWeth,
     BN2Float,
     Float2BN,
@@ -1233,6 +1528,33 @@ module.exports = {
     mockChainlinkPriceFeed,
     setMockPrice,
     getNftOwner,
+    isProxySafe,
+    getSparkFLFee,
+    setNetwork,
+    getNetwork,
+    setBalance,
+    takeSnapshot,
+    revertToSnapshot,
+    mineBlock,
+    setForkForTesting,
+    resetForkToBlock,
+    balanceOfOnTokenInBlock,
+    formatExchangeObjCurve,
+    formatMockExchangeObj,
+    cacheChainlinkPrice,
+    expectCloseEq,
+    setContractAt,
+    getContractFromRegistry,
+    filterEthersObject,
+    curveApiInit,
+    executeTxFromProxy,
+    generateIds,
+    approveContractInRegistry,
+    isWalletNameDsProxy,
+    fetchAmountInUSDPrice,
+    fetchTokenPriceInUSD,
+    isNetworkFork,
+    setCode,
     addrs,
     AVG_GAS_PRICE,
     standardAmounts,
@@ -1276,6 +1598,7 @@ module.exports = {
     AWBTC_ADDR,
     WBTC_ADDR,
     WSTETH_ADDRESS,
+    A_WSETH_TOKEN_ADDR,
     LUSD_ADDR,
     rariDaiFundManager,
     rdptAddress,
@@ -1286,23 +1609,10 @@ module.exports = {
     chainIds,
     BLUSD_ADDR,
     BOND_NFT_ADDR,
-    setNetwork,
-    getNetwork,
-    setBalance,
-    takeSnapshot,
-    revertToSnapshot,
-    mineBlock,
-    setForkForTesting,
-    resetForkToBlock,
-    balanceOfOnTokenInBlock,
-    formatExchangeObjCurve,
-    formatMockExchangeObj,
-    cacheChainlinkPrice,
-    expectCloseEq,
-    setContractAt,
-    getContractFromRegistry,
-    filterEthersObject,
-    curveApiInit: async () => curve.init('Alchemy', {
-        url: hre.network.url,
-    }),
+    AAVE_V2_MARKET_ADDR,
+    WALLETS,
+    BOLD_ADDR,
+    BALANCER_VAULT_ADDR,
+    EETH_ADDR,
+    ETHER_FI_LIQUIDITY_POOL,
 };
